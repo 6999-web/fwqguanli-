@@ -63,9 +63,13 @@ async function main() {
     });
   }
 
-  const workbookPath = path.resolve(process.cwd(), "..", "实验室运维岗考核服务器负责安排表(李秉泽).xlsx");
-  if (!fs.existsSync(workbookPath)) {
-    console.warn(`Workbook not found: ${workbookPath}`);
+  const workbookCandidates = [
+    path.resolve(process.cwd(), "..", "实验室运维岗考核服务器负责安排表(李秉泽).xlsx"),
+    path.resolve(process.cwd(), "..", "seed-data.xlsx"),
+  ];
+  const workbookPath = workbookCandidates.find((candidate) => fs.existsSync(candidate));
+  if (!workbookPath) {
+    console.warn(`Workbook not found: ${workbookCandidates.join(", ")}`);
     return;
   }
 
