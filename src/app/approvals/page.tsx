@@ -5,13 +5,14 @@
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { DataTable } from "@/components/ui/data-table";
-import { statusLabel } from "@/lib/format";
+import { statusLabel, workspaceRequestTypeLabel } from "@/lib/format";
 import { formatDateTime } from "@/lib/time";
 
 export default function ApprovalsPage() {
   const [requests, setRequests] = useState<any[]>([]);
   const [servers, setServers] = useState<any[]>([]);
   const [form, setForm] = useState({
+    requestType: "DEVELOPMENT",
     serverId: "",
     purpose: "",
     expectedDuration: "7 days",
@@ -57,6 +58,18 @@ export default function ApprovalsPage() {
           <div className="rounded-lg border border-cyan-500/15 bg-[#06182f]/80 p-6">
             <div className="mb-4 text-lg font-medium text-cyan-100">提交容器工作区申请</div>
             <div className="grid gap-4 md:grid-cols-2">
+              <select
+                className="rounded-lg bg-[#031224] px-4 py-3"
+                value={form.requestType}
+                onChange={(e) => setForm({ ...form, requestType: e.target.value })}
+              >
+                <option value="DEVELOPMENT">开发调试</option>
+                <option value="TRAINING">模型训练</option>
+                <option value="TESTING">测试验证</option>
+                <option value="DATA_PROCESSING">数据处理</option>
+                <option value="DEMO">演示展示</option>
+                <option value="TEMPORARY">临时使用</option>
+              </select>
               <select
                 className="rounded-lg bg-[#031224] px-4 py-3"
                 value={form.serverId}
@@ -119,13 +132,13 @@ export default function ApprovalsPage() {
               />
               <input
                 className="rounded-lg bg-[#031224] px-4 py-3 md:col-span-2"
-                placeholder="保留端口（逗号分隔）"
+                placeholder="保留端口，逗号分隔"
                 value={form.requiredPorts}
                 onChange={(e) => setForm({ ...form, requiredPorts: e.target.value })}
               />
               <input
                 className="rounded-lg bg-[#031224] px-4 py-3 md:col-span-2"
-                placeholder="所需环境（逗号分隔）"
+                placeholder="所需环境，逗号分隔"
                 value={form.requiredEnvironments}
                 onChange={(e) => setForm({ ...form, requiredEnvironments: e.target.value })}
               />
@@ -143,8 +156,9 @@ export default function ApprovalsPage() {
           </div>
           <div>
             <DataTable
-              columns={["用途", "时长", "CPU", "内存", "磁盘", "状态", "创建时间"]}
+              columns={["申请类型", "用途", "时长", "CPU", "内存", "磁盘", "状态", "创建时间"]}
               rows={requests.map((request) => [
+                workspaceRequestTypeLabel(request.requestType),
                 request.purpose,
                 request.expectedDuration ?? "-",
                 request.requestedCpu ?? "-",

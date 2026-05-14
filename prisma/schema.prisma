@@ -288,6 +288,8 @@ model HandoverRecord {
   id                    String        @id @default(cuid())
   serverId              String
   server                Server        @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  workspaceId           String?
+  workspace             Workspace?    @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
   ownerId               String?
   owner                 User?         @relation("HandoverOwner", fields: [ownerId], references: [id])
   publicIp              String
@@ -390,6 +392,7 @@ model Workspace {
   owner                User             @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   permissionRequestId  String?
   permissionRequest    PermissionRequest? @relation(fields: [permissionRequestId], references: [id], onDelete: SetNull)
+  handovers            HandoverRecord[]
   name                 String
   slug                 String           @unique
   composeProjectName   String

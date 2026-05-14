@@ -5,7 +5,7 @@
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { DataTable } from "@/components/ui/data-table";
-import { approvalTypeLabel, statusLabel } from "@/lib/format";
+import { approvalTypeLabel, statusLabel, workspaceRequestTypeLabel } from "@/lib/format";
 import { formatDateTime } from "@/lib/time";
 
 type WorkspaceSpecDraft = {
@@ -109,6 +109,7 @@ export default function ApprovalCenterPage() {
 
   const rows = approvals.map((approval) => [
     approvalTypeLabel(approval.type),
+    workspaceRequestTypeLabel(approval.payload?.requestType ?? approval.type),
     approval.server?.serverCode ?? "-",
     statusLabel(approval.status),
     statusLabel(approval.riskLevel),
@@ -186,13 +187,13 @@ export default function ApprovalCenterPage() {
             />
             <input
               className="rounded bg-[#031224] px-3 py-2 text-xs text-slate-200"
-              placeholder="宽限期天数"
+              placeholder="宽限天数"
               value={getDraft(approval).graceDays}
               onChange={(event) => updateDraft(approval.id, { graceDays: event.target.value })}
             />
             <input
               className="rounded bg-[#031224] px-3 py-2 text-xs text-slate-200 sm:col-span-2"
-              placeholder="镜像（可选）"
+              placeholder="镜像，可选"
               value={getDraft(approval).baseImage}
               onChange={(event) => updateDraft(approval.id, { baseImage: event.target.value })}
             />
@@ -217,7 +218,7 @@ export default function ApprovalCenterPage() {
       <div className="p-6 text-white">
         <h1 className="text-3xl font-semibold">审批中心</h1>
         <p className="mt-2 text-sm text-slate-400">
-          统一处理工作区访问、端口变更与 OpenCode 高风险审批。工作区审批通过后会在目标宿主机上分配独立容器。
+          统一处理工作区访问、端口变更与 OpenCode 高风险审批。工作区审批通过后会自动生成账号密码，并在交接记录和工作区访问页面展示。
         </p>
         <div className="mt-6">
           {role && role !== "ADMIN" ? (
@@ -225,7 +226,7 @@ export default function ApprovalCenterPage() {
               当前账号仅有查看权限，审批操作只对管理员开放。
             </div>
           ) : null}
-          <DataTable columns={["类型", "宿主机", "状态", "风险", "创建时间", "结果", "操作"]} rows={rows} />
+          <DataTable columns={["审批类型", "申请类型", "宿主机", "状态", "风险", "创建时间", "结果", "操作"]} rows={rows} />
         </div>
       </div>
     </AppShell>

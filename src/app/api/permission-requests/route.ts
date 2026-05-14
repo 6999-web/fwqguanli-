@@ -56,6 +56,10 @@ export async function POST(request: NextRequest) {
     const requestedDiskGb = body.requestedDiskGb ? Number(body.requestedDiskGb) : null;
     const requestedGpu = body.requestedGpu ? Number(body.requestedGpu) : null;
     const requestedPortCount = body.requestedPortCount ? Number(body.requestedPortCount) : null;
+    const requestType =
+      typeof body.requestType === "string" && body.requestType.trim()
+        ? body.requestType.trim()
+        : "WORKSPACE_ACCESS";
 
     if (!body.purpose || !body.expectedDuration) {
       return NextResponse.json({ message: "Missing required fields" }, { status: 400 });
@@ -65,7 +69,7 @@ export async function POST(request: NextRequest) {
       data: {
         requesterId: user.id,
         serverId: body.serverId || undefined,
-        requestType: "WORKSPACE_ACCESS",
+        requestType,
         purpose: body.purpose,
         expectedDuration: body.expectedDuration,
         requiredConfig: body.requiredConfig,
@@ -92,6 +96,7 @@ export async function POST(request: NextRequest) {
         requesterId: user.id,
         payload: {
           requestId: created.id,
+          requestType,
           serverId: body.serverId || null,
           purpose: body.purpose,
           expectedDuration: body.expectedDuration,

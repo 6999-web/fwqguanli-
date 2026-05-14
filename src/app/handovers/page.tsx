@@ -36,11 +36,15 @@ export default function HandoversPage() {
         <h1 className="text-3xl font-semibold">交接记录</h1>
         <div className="mt-6">
           <DataTable
-            columns={["服务器编号", "公网 IP", "登录方式", "当前使用人", "交接时间", "计划归还", "实际归还", "确认状态", "操作"]}
+            columns={["服务器编号", "接入地址", "登录方式", "账号名称", "密码", "当前使用人", "交接时间", "计划归还", "实际归还", "确认状态", "操作"]}
             rows={rows.map((item) => [
               item.serverCode,
-              item.publicIp,
+              `${item.accessHost}:${item.accessPort}`,
               item.loginMethod,
+              item.accountName,
+              <span key={`${item.id}-password`} className="font-mono text-cyan-200">
+                {item.accountPassword}
+              </span>,
               item.owner,
               formatDateTime(item.handoverAt),
               formatDateTime(item.plannedReturnAt),

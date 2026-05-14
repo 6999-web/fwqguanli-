@@ -22,14 +22,16 @@ export async function POST(
         },
       });
 
-      await tx.server.update({
-        where: { id: handover.serverId },
-        data: {
-          status: ServerStatus.IDLE,
-          currentOwnerId: null,
-          expiresAt: null,
-        },
-      });
+      if (!handover.workspaceId) {
+        await tx.server.update({
+          where: { id: handover.serverId },
+          data: {
+            status: ServerStatus.IDLE,
+            currentOwnerId: null,
+            expiresAt: null,
+          },
+        });
+      }
 
       return handover;
     });

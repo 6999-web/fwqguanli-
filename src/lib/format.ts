@@ -47,3 +47,17 @@ export function approvalTypeLabel(type: string) {
 
   return map[type] ?? type;
 }
+
+export function workspaceRequestTypeLabel(type: string) {
+  const map: Record<string, string> = {
+    DEVELOPMENT: "开发调试",
+    TRAINING: "模型训练",
+    TESTING: "测试验证",
+    DATA_PROCESSING: "数据处理",
+    DEMO: "演示展示",
+    TEMPORARY: "临时使用",
+    WORKSPACE_ACCESS: "标准工作区",
+  };
+
+  return map[type] ?? type;
+}

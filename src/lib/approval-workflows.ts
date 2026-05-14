@@ -1,7 +1,7 @@
 import { Prisma, RequestStatus, RiskLevel, ServerStatus, type OperationApproval, type User } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { executeOpenCodeTask } from "@/lib/opencode-execution";
-import { provisionWorkspace } from "@/lib/workspace-orchestrator";
+import { decryptWorkspacePassword, provisionWorkspace } from "@/lib/workspace-orchestrator";
 
 type ApprovalWithRelations = OperationApproval & {
   server: {
@@ -164,10 +164,36 @@ async function decideWorkspaceApproval(
       },
     });
 
+    const handover = await prisma.handoverRecord.create({
+      data: {
+        serverId: server.id,
+        workspaceId: workspace.id,
+        ownerId: permissionRequest.requesterId,
+        publicIp: workspace.sshHost,
+        loginMethod: "WORKSPACE_SSH",
+        openPorts: {
+          sshPort: workspace.sshPort,
+          hostPortStart: workspace.hostPortStart,
+          hostPortEnd: workspace.hostPortEnd,
+        },
+        installedEnvironments: {
+          baseImage: workspace.baseImage,
+        },
+        plannedReturnAt: dueAt ?? undefined,
+      },
+    });
+
+    await prisma.permissionRequest.update({
+      where: { id: permissionRequest.id },
+      data: {
+        handoverId: handover.id,
+      },
+    });
+
     await prisma.operationApproval.update({
       where: { id: approval.id },
       data: {
-        result: `工作区已分配，SSH ${workspace.sshHost}:${workspace.sshPort}`,
+        result: `工作区已分配，SSH ${workspace.sshHost}:${workspace.sshPort}，账号 ${workspace.sshUsername}，密码 ${decryptWorkspacePassword(workspace)}`,
       },
     });
   }
