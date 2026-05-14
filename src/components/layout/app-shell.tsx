@@ -20,14 +20,14 @@ import {
 import { cn } from "@/lib/format";
 
 const navItems = [
-  { href: "/", label: "数据总览", icon: LayoutDashboard, roles: ["ADMIN", "OPS"] },
-  { href: "/servers", label: "服务器资源", icon: ServerCog, roles: ["ADMIN", "OPS"] },
+  { href: "/", label: "数据总览", icon: LayoutDashboard, roles: ["ADMIN", "OPS", "USER"] },
+  { href: "/servers", label: "服务器资产", icon: ServerCog, roles: ["ADMIN", "OPS", "USER"] },
   { href: "/servers/import", label: "服务器导入", icon: FileText, roles: ["ADMIN"] },
   { href: "/approvals", label: "工作区申请", icon: Workflow, roles: ["USER"] },
   { href: "/approval-center", label: "审批中心", icon: ShieldCheck, roles: ["ADMIN", "OPS"] },
   { href: "/handovers", label: "交接记录", icon: AlarmClock, roles: ["ADMIN", "OPS"] },
   { href: "/accounts", label: "账号状态", icon: UserCog, roles: ["ADMIN", "USER"] },
-  { href: "/ports", label: "端口安全", icon: Network, roles: ["ADMIN", "OPS"] },
+  { href: "/ports", label: "端口安全", icon: Network, roles: ["ADMIN", "OPS", "USER"] },
   { href: "/alerts", label: "告警中心", icon: Activity, roles: ["ADMIN", "OPS"] },
   { href: "/inspections", label: "巡检报告", icon: FileText, roles: ["ADMIN", "OPS"] },
   { href: "/assistant", label: "OpenCode 助手", icon: Bot, roles: ["ADMIN", "OPS"] },

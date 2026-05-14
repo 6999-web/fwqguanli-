@@ -7,6 +7,9 @@ import { requirePermission } from "@/lib/rbac";
 export async function GET() {
   try {
     const user = await requirePermission("server:read");
+    if (user.role.code === "USER") {
+      return NextResponse.json({ message: "Alerts are restricted to operations roles" }, { status: 403 });
+    }
     const alerts = await prisma.alert.findMany({
       include: { server: true },
       orderBy: { detectedAt: "desc" },

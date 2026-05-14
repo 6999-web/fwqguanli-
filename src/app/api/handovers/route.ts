@@ -7,7 +7,10 @@ import { decryptWorkspacePassword } from "@/lib/workspace-orchestrator";
 
 export async function GET() {
   try {
-    await requirePermission("server:read");
+    const user = await requirePermission("server:read");
+    if (user.role.code === "USER") {
+      return NextResponse.json({ message: "Handovers are restricted to operations roles" }, { status: 403 });
+    }
     const handovers = await prisma.handoverRecord.findMany({
       include: {
         server: true,

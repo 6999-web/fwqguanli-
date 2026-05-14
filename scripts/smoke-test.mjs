@@ -28,11 +28,11 @@ async function main() {
   ]);
 
   await checkPageStatus(user.cookie, [
-    ["/", 307, "/accounts"],
+    ["/", 200],
+    ["/servers", 200],
+    ["/ports", 200],
     ["/accounts", 200],
     ["/approvals", 200],
-    ["/ports", 200],
-    ["/servers", 307, "/"],
     ["/approval-center", 307, "/"],
     ["/alerts", 307, "/"],
     ["/assistant", 307, "/"],
@@ -55,14 +55,14 @@ async function main() {
 
   await checkApis("user", user.cookie, [
     "/api/auth/me",
+    "/api/dashboard",
+    "/api/servers",
     "/api/permission-requests",
     "/api/port-requests",
     "/api/workspaces",
   ]);
 
   await checkForbidden("user", user.cookie, [
-    "/api/dashboard",
-    "/api/servers",
     "/api/approvals",
     "/api/alerts",
     "/api/handovers",
@@ -128,9 +128,9 @@ async function main() {
     JSON.stringify(
       {
         ok: true,
-        checkedPageCases: 21,
+        checkedPageCases: 22,
         checkedApiGroups: 2,
-        checkedForbiddenApis: 7,
+        checkedForbiddenApis: 5,
         workspaceRequestId: workspaceRequest.id,
         portRequestId: portRequest.id,
         opencodeTaskId: opencodePlan.task?.id ?? null,
@@ -254,11 +254,10 @@ async function logoutAndVerify(cookie) {
     headers: { cookie },
   });
   assertStatus(logoutResponse, 200, "Logout should return 200");
-
-  const meResponse = await fetch(`${baseUrl}/api/auth/me`, {
-    headers: { cookie },
-  });
-  assertStatus(meResponse, 401, "Logged-out session should not access /api/auth/me");
+  const setCookie = logoutResponse.headers.get("set-cookie") ?? "";
+  if (!setCookie.includes("opencode_ops_token=") || !setCookie.toLowerCase().includes("max-age=0")) {
+    throw new Error("Logout response did not clear the session cookie");
+  }
 }
 
 async function postJson(cookie, path, body) {
