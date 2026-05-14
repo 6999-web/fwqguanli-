@@ -1,0 +1,422 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RoleCode {
+  ADMIN
+  OPS
+  USER
+}
+
+enum ServerStatus {
+  IDLE
+  IN_USE
+  MAINTENANCE
+  ERROR
+  DISABLED
+}
+
+enum AlertLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AlertType {
+  CPU_HIGH
+  MEMORY_HIGH
+  DISK_LOW
+  ABNORMAL_LOGIN
+  UNREGISTERED_PORT
+  SERVICE_DOWN
+  SERVER_OFFLINE
+  PERMISSION_ANOMALY
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXECUTING
+  COMPLETED
+  EXPIRED
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ProtocolType {
+  TCP
+  UDP
+}
+
+enum WorkspaceStatus {
+  PROVISIONING
+  RUNNING
+  STOPPED
+  EXPIRED
+  FAILED
+  DELETED
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  code        RoleCode @unique
+  name        String
+  description String?
+  users       User[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model User {
+  id                 String               @id @default(cuid())
+  email              String               @unique
+  name               String
+  passwordHash       String
+  roleId             String
+  role               Role                 @relation(fields: [roleId], references: [id])
+  phone              String?
+  status             String               @default("ACTIVE")
+  permissionRequests PermissionRequest[]  @relation("PermissionRequester")
+  approvedRequests   PermissionRequest[]  @relation("PermissionApprover")
+  portRequests       PortRequest[]        @relation("PortRequester")
+  approvedPorts      PortRequest[]        @relation("PortApprover")
+  approvals          OperationApproval[]  @relation("ApprovalApprover")
+  auditLogs          AuditLog[]
+  handovers          HandoverRecord[]     @relation("HandoverOwner")
+  ownedServers       Server[]             @relation("PrimaryOwner")
+  backupServers      Server[]             @relation("BackupOwner")
+  workspaces         Workspace[]          @relation("WorkspaceOwner")
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+}
+
+model Server {
+  id                 String               @id @default(cuid())
+  serverCode         String               @unique
+  accountId          String
+  loginEmail         String
+  loginEmailPassword String
+  region             String
+  publicIp           String               @unique
+  privateIp          String?
+  provider           String?
+  serverUsername     String
+  serverPassword     String
+  purpose            String?
+  currentOwnerId     String?
+  backupOwnerId      String?
+  currentOwner       User?                @relation("PrimaryOwner", fields: [currentOwnerId], references: [id])
+  backupOwner        User?                @relation("BackupOwner", fields: [backupOwnerId], references: [id])
+  status             ServerStatus         @default(IDLE)
+  expiresAt          DateTime?
+  cpuSpec            String?
+  memorySpec         String?
+  diskSpec           String?
+  gpuSpec            String?
+  bandwidth          String?
+  osVersion          String?
+  notes              String?
+  metrics            ServerMetric[]
+  environment        ServerEnvironment?
+  accounts           ServerAccount[]
+  sshKeys            SSHKey[]
+  applications       ServerApplication[]
+  handovers          HandoverRecord[]
+  alerts             Alert[]
+  inspections        InspectionTask[]
+  reports            InspectionReport[]
+  opencodeTasks      OpenCodeTask[]
+  permissionRequests PermissionRequest[]
+  portRequests       PortRequest[]
+  firewallRules      FirewallRule[]
+  approvals          OperationApproval[]
+  workspaces         Workspace[]
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+}
+
+model ServerMetric {
+  id             String   @id @default(cuid())
+  serverId       String
+  server         Server   @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  cpuUsage       Float
+  memoryUsage    Float
+  diskUsage      Float
+  networkIn      Float
+  networkOut     Float
+  processCount   Int
+  openPortsCount Int
+  loginCount     Int      @default(0)
+  alertCount     Int      @default(0)
+  lastLoginAt    DateTime?
+  collectedAt    DateTime @default(now())
+
+  @@index([serverId, collectedAt])
+}
+
+model ServerEnvironment {
+  id                  String   @id @default(cuid())
+  serverId            String   @unique
+  server              Server   @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  osVersion           String?
+  dockerVersion       String?
+  pythonVersion       String?
+  nodeVersion         String?
+  cudaVersion         String?
+  nginxStatus         String?
+  databaseInfo        String?
+  runningServices     Json?
+  installedComponents Json?
+  openPorts           Json?
+  updatedAt           DateTime @updatedAt
+}
+
+model ServerAccount {
+  id                String   @id @default(cuid())
+  serverId          String
+  server            Server   @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  username          String
+  accessLevel       String
+  passwordEncrypted String?
+  status            String   @default("ACTIVE")
+  lastLoginAt       DateTime?
+  loginLogs         Json?
+  source            String   @default("DISCOVERED")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([serverId, username])
+}
+
+model SSHKey {
+  id                  String   @id @default(cuid())
+  serverId            String
+  server              Server   @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  title               String
+  publicKey           String
+  privateKeyEncrypted String?
+  owner               String?
+  createdAt           DateTime @default(now())
+}
+
+model PermissionRequest {
+  id                   String         @id @default(cuid())
+  requesterId          String
+  requester            User           @relation("PermissionRequester", fields: [requesterId], references: [id])
+  approverId           String?
+  approver             User?          @relation("PermissionApprover", fields: [approverId], references: [id])
+  serverId             String?
+  server               Server?        @relation(fields: [serverId], references: [id])
+  requestType          String
+  purpose              String
+  expectedDuration     String?
+  requiredConfig       String?
+  requiredPorts        Json?
+  requiredEnvironments Json?
+  requestedCpu         Float?
+  requestedMemoryMb    Int?
+  requestedDiskGb      Int?
+  requestedGpu         Int?
+  requestedPortCount   Int?
+  note                 String?
+  assignedServerId     String?
+  status               RequestStatus  @default(PENDING)
+  dueAt                DateTime?
+  handoverId           String?
+  workspaces           Workspace[]
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+}
+
+model PortRequest {
+  id          String        @id @default(cuid())
+  serverId    String
+  server      Server        @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  port        Int
+  protocol    ProtocolType
+  purpose     String
+  requesterId String
+  requester   User          @relation("PortRequester", fields: [requesterId], references: [id])
+  approverId  String?
+  approver    User?         @relation("PortApprover", fields: [approverId], references: [id])
+  status      RequestStatus @default(PENDING)
+  action      String        @default("OPEN")
+  openedAt    DateTime?
+  closedAt    DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model FirewallRule {
+  id          String       @id @default(cuid())
+  serverId    String
+  server      Server       @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  port        Int
+  protocol    ProtocolType
+  action      String
+  source      String?
+  description String?
+  syncedAt    DateTime?
+  createdAt   DateTime     @default(now())
+}
+
+model ServerApplication {
+  id        String   @id @default(cuid())
+  serverId  String
+  server    Server   @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  name      String
+  version   String?
+  status    String?
+  port      Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model HandoverRecord {
+  id                    String        @id @default(cuid())
+  serverId              String
+  server                Server        @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  ownerId               String?
+  owner                 User?         @relation("HandoverOwner", fields: [ownerId], references: [id])
+  publicIp              String
+  loginMethod           String
+  openPorts             Json?
+  installedEnvironments Json?
+  handoverAt            DateTime      @default(now())
+  plannedReturnAt       DateTime?
+  actualReturnedAt      DateTime?
+  confirmedAt           DateTime?
+  confirmStatus         RequestStatus @default(PENDING)
+  createdAt             DateTime      @default(now())
+}
+
+model Alert {
+  id          String      @id @default(cuid())
+  serverId    String
+  server      Server      @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  type        AlertType
+  level       AlertLevel
+  title       String
+  description String
+  status      String      @default("OPEN")
+  detectedAt  DateTime    @default(now())
+  resolvedAt  DateTime?
+}
+
+model InspectionTask {
+  id             String        @id @default(cuid())
+  serverId       String
+  server         Server        @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  title          String
+  cronExpression String?
+  checklist      Json?
+  status         RequestStatus @default(PENDING)
+  lastRunAt      DateTime?
+  nextRunAt      DateTime?
+  createdAt      DateTime      @default(now())
+}
+
+model InspectionReport {
+  id        String   @id @default(cuid())
+  serverId  String
+  server    Server   @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  title     String
+  summary   String
+  detail    Json?
+  createdAt DateTime @default(now())
+}
+
+model OpenCodeTask {
+  id                String        @id @default(cuid())
+  serverId          String?
+  server            Server?       @relation(fields: [serverId], references: [id])
+  userId            String?
+  prompt            String
+  analysis          String
+  suggestedCommands Json?
+  riskLevel         RiskLevel     @default(LOW)
+  status            RequestStatus @default(PENDING)
+  executionResult   String?
+  report            String?
+  createdAt         DateTime      @default(now())
+}
+
+model OperationApproval {
+  id         String        @id @default(cuid())
+  serverId   String?
+  server     Server?       @relation(fields: [serverId], references: [id])
+  type       String
+  title      String
+  payload    Json?
+  riskLevel  RiskLevel
+  status     RequestStatus @default(PENDING)
+  requesterId String?
+  approverId String?
+  approver   User?         @relation("ApprovalApprover", fields: [approverId], references: [id])
+  result     String?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  module    String
+  targetId  String?
+  detail    Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+}
+
+model Workspace {
+  id                   String           @id @default(cuid())
+  serverId             String
+  server               Server           @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  ownerId              String
+  owner                User             @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  permissionRequestId  String?
+  permissionRequest    PermissionRequest? @relation(fields: [permissionRequestId], references: [id], onDelete: SetNull)
+  name                 String
+  slug                 String           @unique
+  composeProjectName   String
+  containerName        String
+  sshUsername          String
+  sshPasswordEncrypted String
+  sshHost              String
+  sshPort              Int
+  hostPortStart        Int
+  hostPortEnd          Int
+  cpuLimit             Float
+  memoryLimitMb        Int
+  diskLimitGb          Int
+  gpuLimit             Int?
+  workingDirectory     String
+  baseImage            String
+  status               WorkspaceStatus  @default(PROVISIONING)
+  statusMessage        String?
+  expiresAt            DateTime?
+  graceUntil           DateTime?
+  lastStartedAt        DateTime?
+  lastStoppedAt        DateTime?
+  lastPasswordResetAt  DateTime?
+  deletedAt            DateTime?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  @@index([ownerId, createdAt])
+  @@index([serverId, createdAt])
+}
