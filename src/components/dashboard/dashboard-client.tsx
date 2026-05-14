@@ -304,26 +304,46 @@ function EmptyTrendState({ isCollecting }: { isCollecting: boolean }) {
 }
 
 function ChartPanel({ title, children }: { title: string; children: React.ReactNode }) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   return (
     <div>
       <div className="mb-2 text-sm text-cyan-200">{title}</div>
       <div className="h-64">
-        <ResponsiveContainer width="100%" height="100%">
-          {children as React.ReactElement}
-        </ResponsiveContainer>
+        {mounted ? (
+          <ResponsiveContainer width="100%" height="100%">
+            {children as React.ReactElement}
+          </ResponsiveContainer>
+        ) : (
+          <div className="h-full rounded-lg border border-dashed border-cyan-500/10 bg-[#091e39]" />
+        )}
       </div>
     </div>
   );
 }
 
 function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   return (
     <div className="rounded-lg border border-cyan-500/15 bg-[#06182f]/80 p-4">
       <div className="mb-2 text-sm text-cyan-200">{title}</div>
       <div className="h-64">
-        <ResponsiveContainer width="100%" height="100%">
-          {children as React.ReactElement}
-        </ResponsiveContainer>
+        {mounted ? (
+          <ResponsiveContainer width="100%" height="100%">
+            {children as React.ReactElement}
+          </ResponsiveContainer>
+        ) : (
+          <div className="h-full rounded-lg border border-dashed border-cyan-500/10 bg-[#091e39]" />
+        )}
       </div>
     </div>
   );
