@@ -165,30 +165,12 @@ async function decideWorkspaceApproval(
         },
       });
 
-      const handover = await prisma.handoverRecord.create({
-        data: {
-          serverId: server.id,
-          workspaceId: workspace.id,
-          ownerId: permissionRequest.requesterId,
-          publicIp: workspace.sshHost,
-          loginMethod: "WORKSPACE_SSH",
-          openPorts: {
-            sshPort: workspace.sshPort,
-            hostPortStart: workspace.hostPortStart,
-            hostPortEnd: workspace.hostPortEnd,
-          },
-          installedEnvironments: {
-            baseImage: workspace.baseImage,
-          },
-          plannedReturnAt: dueAt ?? undefined,
-        },
-      });
-
-      await prisma.permissionRequest.update({
-        where: { id: permissionRequest.id },
-        data: {
-          handoverId: handover.id,
-        },
+      await createWorkspaceHandover({
+        workspace,
+        serverId: server.id,
+        ownerId: permissionRequest.requesterId,
+        permissionRequestId: permissionRequest.id,
+        plannedReturnAt: dueAt,
       });
 
       await prisma.operationApproval.update({
@@ -199,26 +181,51 @@ async function decideWorkspaceApproval(
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "workspace provisioning failed";
-      await prisma.$transaction([
-        prisma.permissionRequest.update({
-          where: { id: permissionRequest.id },
-          data: {
-            status: RequestStatus.PENDING,
-            approverId: null,
-            assignedServerId: null,
-            dueAt: null,
-          },
-        }),
-        prisma.operationApproval.update({
-          where: { id: approval.id },
-          data: {
-            status: RequestStatus.PENDING,
-            approverId: null,
-            result: `工作区创建失败：${message}`,
-          },
-        }),
-      ]);
-      throw error;
+      const failedWorkspace = await prisma.workspace.findFirst({
+        where: {
+          permissionRequestId: permissionRequest.id,
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      if (!failedWorkspace) {
+        await prisma.$transaction([
+          prisma.permissionRequest.update({
+            where: { id: permissionRequest.id },
+            data: {
+              status: RequestStatus.PENDING,
+              approverId: null,
+              assignedServerId: null,
+              dueAt: null,
+            },
+          }),
+          prisma.operationApproval.update({
+            where: { id: approval.id },
+            data: {
+              status: RequestStatus.PENDING,
+              approverId: null,
+              result: `工作区创建失败：${message}`,
+            },
+          }),
+        ]);
+        throw error;
+      }
+
+      workspace = failedWorkspace;
+      await createWorkspaceHandover({
+        workspace: failedWorkspace,
+        serverId: server.id,
+        ownerId: permissionRequest.requesterId,
+        permissionRequestId: permissionRequest.id,
+        plannedReturnAt: dueAt,
+      });
+
+      await prisma.operationApproval.update({
+        where: { id: approval.id },
+        data: {
+          result: `工作区账号已生成，但环境启动失败：${message}。SSH ${failedWorkspace.sshHost}:${failedWorkspace.sshPort}，账号 ${failedWorkspace.sshUsername}，密码 ${decryptWorkspacePassword(failedWorkspace)}`,
+        },
+      });
     }
   }
 
@@ -402,6 +409,50 @@ function buildWorkspaceUsername(name: string, requestId: string) {
     .replace(/[^a-z0-9]+/g, "")
     .slice(0, 8) || "user";
   return `${base}${requestId.slice(-4)}`;
+}
+
+async function createWorkspaceHandover(options: {
+  workspace: {
+    id: string;
+    sshHost: string;
+    sshPort: number;
+    sshUsername: string;
+    hostPortStart: number;
+    hostPortEnd: number;
+    baseImage: string;
+  };
+  serverId: string;
+  ownerId: string;
+  permissionRequestId: string;
+  plannedReturnAt: Date | null;
+}) {
+  const handover = await prisma.handoverRecord.create({
+    data: {
+      serverId: options.serverId,
+      workspaceId: options.workspace.id,
+      ownerId: options.ownerId,
+      publicIp: options.workspace.sshHost,
+      loginMethod: "WORKSPACE_SSH",
+      openPorts: {
+        sshPort: options.workspace.sshPort,
+        hostPortStart: options.workspace.hostPortStart,
+        hostPortEnd: options.workspace.hostPortEnd,
+      },
+      installedEnvironments: {
+        baseImage: options.workspace.baseImage,
+      },
+      plannedReturnAt: options.plannedReturnAt ?? undefined,
+    },
+  });
+
+  await prisma.permissionRequest.update({
+    where: { id: options.permissionRequestId },
+    data: {
+      handoverId: handover.id,
+    },
+  });
+
+  return handover;
 }
 
 function asString(value: unknown) {
