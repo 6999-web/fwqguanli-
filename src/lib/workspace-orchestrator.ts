@@ -303,7 +303,8 @@ async function runRemoteCommand(server: Server, command: string) {
     password: decryptText(server.serverPassword),
   });
   try {
-    const result = await runSSHCommand(conn, command);
+    const wrapped = `export PATH="$PATH:/usr/local/bin:/usr/bin:/bin" && ${command}`;
+    const result = await runSSHCommand(conn, `bash -lc ${shellEscape(wrapped)}`);
     if (result.exitCode !== 0) {
       throw new Error(result.stderr || result.stdout || `Remote command failed with ${result.exitCode}`);
     }
