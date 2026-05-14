@@ -15,7 +15,7 @@ async function main() {
   await checkPageStatus(admin.cookie, [
     ["/", 200],
     ["/servers", 200],
-    ["/servers/import", 200],
+    ["/servers/import", 307, "/servers"],
     ["/approval-center", 200],
     ["/handovers", 200],
     ["/ports", 200],
@@ -29,10 +29,11 @@ async function main() {
 
   await checkPageStatus(user.cookie, [
     ["/", 200],
-    ["/servers", 200],
+    ["/servers", 307, "/"],
     ["/ports", 200],
     ["/accounts", 200],
     ["/approvals", 200],
+    ["/guide", 200],
     ["/approval-center", 307, "/"],
     ["/alerts", 307, "/"],
     ["/assistant", 307, "/"],
@@ -43,6 +44,7 @@ async function main() {
     "/api/auth/me",
     "/api/dashboard",
     "/api/servers",
+    "/api/ports",
     "/api/approvals",
     "/api/permission-requests",
     "/api/port-requests",
@@ -57,6 +59,7 @@ async function main() {
     "/api/auth/me",
     "/api/dashboard",
     "/api/servers",
+    "/api/ports",
     "/api/permission-requests",
     "/api/port-requests",
     "/api/workspaces",
@@ -128,7 +131,7 @@ async function main() {
     JSON.stringify(
       {
         ok: true,
-        checkedPageCases: 22,
+        checkedPageCases: 23,
         checkedApiGroups: 2,
         checkedForbiddenApis: 5,
         workspaceRequestId: workspaceRequest.id,

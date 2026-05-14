@@ -21,6 +21,18 @@ export async function GET() {
       orderBy: { createdAt: "desc" },
     });
 
+    if (user.role.code === "USER") {
+      return NextResponse.json(
+        servers.map((server) => ({
+          id: server.id,
+          serverCode: server.serverCode,
+          region: server.region,
+          provider: server.provider ?? "Unknown",
+          status: server.status,
+        })),
+      );
+    }
+
     return NextResponse.json(
       servers.map((server) => sanitizeServer(server, user.role.code)),
     );

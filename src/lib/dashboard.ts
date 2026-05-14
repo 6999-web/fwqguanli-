@@ -1,9 +1,9 @@
-import { RequestStatus, ServerStatus } from "@prisma/client";
+import { RequestStatus, ServerStatus, WorkspaceStatus } from "@prisma/client";
 import { subHours } from "date-fns";
 import { maskEmail, maskSecret } from "@/lib/crypto";
 import { prisma } from "@/lib/prisma";
 
-export async function getDashboardData() {
+export async function getAdminDashboardData() {
   const [servers, latestMetrics, alerts, metrics, handovers] = await Promise.all([
     prisma.server.findMany({
       include: {
@@ -143,6 +143,120 @@ export async function getDashboardData() {
   };
 }
 
+export async function getUserDashboardData(userId: string) {
+  const [workspaces, requests, portRequests] = await Promise.all([
+    prisma.workspace.findMany({
+      where: {
+        ownerId: userId,
+        deletedAt: null,
+      },
+      include: {
+        server: {
+          include: {
+            environment: true,
+            metrics: {
+              orderBy: { collectedAt: "desc" },
+              take: 1,
+            },
+          },
+        },
+      },
+      orderBy: { updatedAt: "desc" },
+    }),
+    prisma.permissionRequest.findMany({
+      where: { requesterId: userId },
+      include: {
+        approver: true,
+        server: true,
+      },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+    }),
+    prisma.portRequest.findMany({
+      where: { requesterId: userId },
+      include: {
+        approver: true,
+        server: true,
+      },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+    }),
+  ]);
+
+  const uniqueServerCount = new Set(workspaces.map((item) => item.serverId)).size;
+  const expiringSoonCount = workspaces.filter((item) => {
+    if (!item.expiresAt) return false;
+    return item.expiresAt.getTime() - Date.now() <= 7 * 24 * 60 * 60 * 1000;
+  }).length;
+
+  return {
+    summary: {
+      accountCount: workspaces.length,
+      runningCount: workspaces.filter((item) => item.status === WorkspaceStatus.RUNNING).length,
+      serverCount: uniqueServerCount,
+      expiringSoonCount,
+    },
+    accounts: workspaces.map((workspace) => {
+      const latestMetric = workspace.server.metrics[0];
+      return {
+        id: workspace.id,
+        name: workspace.name,
+        status: workspace.status,
+        statusMessage: workspace.statusMessage,
+        serverCode: workspace.server.serverCode,
+        publicIp: workspace.server.publicIp,
+        region: workspace.server.region,
+        provider: workspace.server.provider ?? "Unknown",
+        serverStatus: workspace.server.status,
+        sshHost: workspace.sshHost,
+        sshPort: workspace.sshPort,
+        sshUsername: workspace.sshUsername,
+        workingDirectory: workspace.workingDirectory,
+        expiresAt: workspace.expiresAt,
+        lastStartedAt: workspace.lastStartedAt,
+        lastStoppedAt: workspace.lastStoppedAt,
+        lastPasswordResetAt: workspace.lastPasswordResetAt,
+        cpuLimit: workspace.cpuLimit,
+        memoryLimitMb: workspace.memoryLimitMb,
+        diskLimitGb: workspace.diskLimitGb,
+        hostPortStart: workspace.hostPortStart,
+        hostPortEnd: workspace.hostPortEnd,
+        latestCpuUsage: latestMetric?.cpuUsage ?? 0,
+        latestMemoryUsage: latestMetric?.memoryUsage ?? 0,
+        latestDiskUsage: latestMetric?.diskUsage ?? 0,
+        latestOpenPortsCount: latestMetric?.openPortsCount ?? 0,
+        openPorts: normalizeStringArray(workspace.server.environment?.openPorts),
+      };
+    }),
+    requests: requests.map((request) => ({
+      id: request.id,
+      requestType: request.requestType,
+      purpose: request.purpose,
+      expectedDuration: request.expectedDuration,
+      requestedCpu: request.requestedCpu,
+      requestedMemoryMb: request.requestedMemoryMb,
+      requestedDiskGb: request.requestedDiskGb,
+      requestedGpu: request.requestedGpu,
+      status: request.status,
+      serverCode: request.server?.serverCode ?? "系统自动分配",
+      approverName: request.approver?.name ?? "-",
+      createdAt: request.createdAt,
+      dueAt: request.dueAt,
+    })),
+    ports: portRequests.map((request) => ({
+      id: request.id,
+      serverCode: request.server.serverCode,
+      port: request.port,
+      protocol: request.protocol,
+      action: request.action,
+      purpose: request.purpose,
+      status: request.status,
+      approverName: request.approver?.name ?? "-",
+      createdAt: request.createdAt,
+    })),
+  };
+}
+
 function average(values: number[]) {
   if (!values.length) return 0;
   return Number((values.reduce((sum, item) => sum + item, 0) / values.length).toFixed(2));
@@ -152,4 +266,9 @@ function summarize(values: string[]) {
   const map = new Map<string, number>();
   values.forEach((value) => map.set(value, (map.get(value) ?? 0) + 1));
   return Array.from(map.entries()).map(([name, value]) => ({ name, value }));
+}
+
+function normalizeStringArray(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  return input.filter((item): item is string => typeof item === "string");
 }

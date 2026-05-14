@@ -43,9 +43,24 @@ export default function ApprovalsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ...form,
-        requiredPorts: form.requiredPorts.split(",").map((item) => item.trim()).filter(Boolean),
-        requiredEnvironments: form.requiredEnvironments.split(",").map((item) => item.trim()).filter(Boolean),
+        requiredPorts: form.requiredPorts
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean),
+        requiredEnvironments: form.requiredEnvironments
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean),
       }),
+    });
+
+    setForm({
+      ...form,
+      purpose: "",
+      requiredConfig: "",
+      requiredPorts: "",
+      requiredEnvironments: "",
+      note: "",
     });
     await load();
   }
@@ -54,7 +69,9 @@ export default function ApprovalsPage() {
     <AppShell>
       <div className="p-6 text-white">
         <h1 className="text-3xl font-semibold">工作区申请</h1>
-        <div className="mt-6 grid gap-6 xl:grid-cols-[1.2fr_1fr]">
+        <p className="mt-2 text-sm text-slate-400">左侧提交新的工作区需求，右侧只展示你自己的历史申请记录。</p>
+
+        <div className="mt-6 grid gap-6 xl:grid-cols-[1.15fr_1fr]">
           <div className="rounded-lg border border-cyan-500/15 bg-[#06182f]/80 p-6">
             <div className="mb-4 text-lg font-medium text-cyan-100">提交容器工作区申请</div>
             <div className="grid gap-4 md:grid-cols-2">
@@ -84,7 +101,7 @@ export default function ApprovalsPage() {
               </select>
               <input
                 className="rounded-lg bg-[#031224] px-4 py-3"
-                placeholder="预计使用时长"
+                placeholder="预计使用时长，如 7 days"
                 value={form.expectedDuration}
                 onChange={(e) => setForm({ ...form, expectedDuration: e.target.value })}
               />
@@ -120,13 +137,13 @@ export default function ApprovalsPage() {
               />
               <input
                 className="rounded-lg bg-[#031224] px-4 py-3"
-                placeholder="需要开放的业务端口数量"
+                placeholder="业务端口数量"
                 value={form.requestedPortCount}
                 onChange={(e) => setForm({ ...form, requestedPortCount: e.target.value })}
               />
               <input
                 className="rounded-lg bg-[#031224] px-4 py-3"
-                placeholder="所需基础配置"
+                placeholder="基础配置要求"
                 value={form.requiredConfig}
                 onChange={(e) => setForm({ ...form, requiredConfig: e.target.value })}
               />
@@ -145,7 +162,7 @@ export default function ApprovalsPage() {
               <textarea
                 className="rounded-lg bg-[#031224] px-4 py-3 md:col-span-2"
                 rows={4}
-                placeholder="备注"
+                placeholder="补充说明"
                 value={form.note}
                 onChange={(e) => setForm({ ...form, note: e.target.value })}
               />
@@ -154,17 +171,21 @@ export default function ApprovalsPage() {
               提交申请
             </button>
           </div>
-          <div>
+
+          <div className="space-y-3">
+            <div>
+              <div className="text-lg font-medium text-cyan-100">历史申请记录</div>
+              <div className="mt-1 text-sm text-slate-400">显示你的工作区申请、审批状态和最终分配结果。</div>
+            </div>
             <DataTable
-              columns={["申请类型", "用途", "时长", "CPU", "内存", "磁盘", "状态", "创建时间"]}
+              columns={["申请类型", "用途", "目标服务器", "状态", "审批人", "工作区状态", "创建时间"]}
               rows={requests.map((request) => [
                 workspaceRequestTypeLabel(request.requestType),
                 request.purpose,
-                request.expectedDuration ?? "-",
-                request.requestedCpu ?? "-",
-                request.requestedMemoryMb ?? "-",
-                request.requestedDiskGb ?? "-",
+                request.server?.serverCode ?? "自动分配",
                 statusLabel(request.status),
+                request.approver?.name ?? "-",
+                request.latestWorkspace?.status ? statusLabel(request.latestWorkspace.status) : "-",
                 formatDateTime(request.createdAt),
               ])}
             />

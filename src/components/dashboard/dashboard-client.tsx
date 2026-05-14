@@ -21,7 +21,7 @@ import { StatCard } from "@/components/ui/stat-card";
 import { statusLabel } from "@/lib/format";
 import { formatDateTime } from "@/lib/time";
 
-type DashboardPayload = Awaited<ReturnType<typeof import("@/lib/dashboard").getDashboardData>>;
+type DashboardPayload = Awaited<ReturnType<typeof import("@/lib/dashboard").getAdminDashboardData>>;
 
 const colors = ["#22d3ee", "#0ea5e9", "#6366f1", "#14b8a6", "#f97316", "#ef4444"];
 
