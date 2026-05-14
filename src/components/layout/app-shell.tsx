@@ -53,6 +53,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       });
   }, []);
 
+  useEffect(() => {
+    function clearSessionOnUnload() {
+      if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
+        navigator.sendBeacon("/api/auth/logout");
+        return;
+      }
+
+      void fetch("/api/auth/logout", {
+        method: "POST",
+        keepalive: true,
+      });
+    }
+
+    window.addEventListener("pagehide", clearSessionOnUnload);
+    return () => {
+      window.removeEventListener("pagehide", clearSessionOnUnload);
+    };
+  }, []);
+
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/login");
