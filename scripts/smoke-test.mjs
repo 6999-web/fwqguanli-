@@ -1,39 +1,42 @@
-const { PrismaClient, RequestStatus } = require("@prisma/client");
+import { PrismaClient, RequestStatus } from "@prisma/client";
 
 const prisma = new PrismaClient();
-const baseUrl = process.env.SMOKE_BASE_URL || "http://localhost:3000";
+const baseUrl = process.env.SMOKE_BASE_URL || "http://127.0.0.1:3000";
 
 async function main() {
+  const noAuthMe = await fetch(`${baseUrl}/api/auth/me`);
+  assertStatus(noAuthMe, 401, "Unauthenticated /api/auth/me should return 401");
+
+  await expectLoginFailure("ops@opencode.local", "Ops123456!", 400);
+
   const admin = await login("admin@opencode.local", "ChangeMe123!");
-  const ops = await login("ops@opencode.local", "Ops123456!");
   const user = await login("user@opencode.local", "User123456!");
 
-  await checkPages(admin.cookie, [
-    "/",
-    "/servers",
-    "/approvals",
-    "/approval-center",
-    "/accounts",
-    "/ports",
-    "/alerts",
-    "/assistant",
-    "/audit-logs",
+  await checkPageStatus(admin.cookie, [
+    ["/", 200],
+    ["/servers", 200],
+    ["/servers/import", 200],
+    ["/approval-center", 200],
+    ["/handovers", 200],
+    ["/ports", 200],
+    ["/alerts", 200],
+    ["/inspections", 200],
+    ["/assistant", 200],
+    ["/audit-logs", 200],
+    ["/accounts", 200],
+    ["/approvals", 307, "/"],
   ]);
 
-  await checkPages(ops.cookie, [
-    "/",
-    "/servers",
-    "/approval-center",
-    "/alerts",
-    "/assistant",
-  ]);
-
-  await checkPages(user.cookie, [
-    "/",
-    "/servers",
-    "/approvals",
-    "/accounts",
-    "/ports",
+  await checkPageStatus(user.cookie, [
+    ["/", 307, "/accounts"],
+    ["/accounts", 200],
+    ["/approvals", 200],
+    ["/ports", 200],
+    ["/servers", 307, "/"],
+    ["/approval-center", 307, "/"],
+    ["/alerts", 307, "/"],
+    ["/assistant", 307, "/"],
+    ["/audit-logs", 307, "/"],
   ]);
 
   await checkApis("admin", admin.cookie, [
@@ -50,29 +53,21 @@ async function main() {
     "/api/accounts",
   ]);
 
-  await checkApis("ops", ops.cookie, [
-    "/api/auth/me",
-    "/api/dashboard",
-    "/api/servers",
-    "/api/approvals",
-    "/api/permission-requests",
-    "/api/port-requests",
-    "/api/workspaces",
-  ]);
-
   await checkApis("user", user.cookie, [
     "/api/auth/me",
-    "/api/dashboard",
-    "/api/servers",
     "/api/permission-requests",
     "/api/port-requests",
     "/api/workspaces",
   ]);
 
   await checkForbidden("user", user.cookie, [
+    "/api/dashboard",
+    "/api/servers",
     "/api/approvals",
-    "/api/accounts",
+    "/api/alerts",
+    "/api/handovers",
     "/api/audit-logs",
+    "/api/accounts",
   ]);
 
   const server = await prisma.server.findFirst({ orderBy: { createdAt: "asc" } });
@@ -114,7 +109,7 @@ async function main() {
     throw new Error(`Port request expected APPROVED, got ${approvedPort.status}`);
   }
 
-  const opencodePlan = await postJson(ops.cookie, "/api/opencode/chat", {
+  const opencodePlan = await postJson(admin.cookie, "/api/opencode/chat", {
     prompt: "检查磁盘使用情况并给出排查建议",
     execute: false,
   });
@@ -127,12 +122,15 @@ async function main() {
     throw new Error("Collector trigger did not return ok=true");
   }
 
+  await logoutAndVerify(admin.cookie);
+
   console.log(
     JSON.stringify(
       {
         ok: true,
-        checkedPages: 19,
-        checkedApiGroups: 3,
+        checkedPageCases: 21,
+        checkedApiGroups: 2,
+        checkedForbiddenApis: 7,
         workspaceRequestId: workspaceRequest.id,
         portRequestId: portRequest.id,
         opencodeTaskId: opencodePlan.task?.id ?? null,
@@ -162,14 +160,27 @@ async function login(email, password) {
   };
 }
 
-async function checkPages(cookie, paths) {
-  for (const path of paths) {
+async function expectLoginFailure(email, password, status) {
+  const response = await fetch(`${baseUrl}/api/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  assertStatus(response, status, `Login for ${email} should fail`);
+}
+
+async function checkPageStatus(cookie, cases) {
+  for (const [path, status, location] of cases) {
     const response = await fetch(`${baseUrl}${path}`, {
       headers: { cookie },
       redirect: "manual",
     });
-    if (response.status !== 200) {
-      throw new Error(`Page ${path} expected 200, got ${response.status}`);
+    assertStatus(response, status, `Page ${path} expected ${status}`);
+    if (location) {
+      const actual = response.headers.get("location");
+      if (actual !== location) {
+        throw new Error(`Page ${path} expected redirect to ${location}, got ${actual ?? "null"}`);
+      }
     }
   }
 }
@@ -214,9 +225,10 @@ async function createWorkspaceRequest(cookie, serverId) {
 }
 
 async function createPortRequest(cookie, serverId) {
+  const port = 18080 + Math.floor(Math.random() * 1000);
   return postJson(cookie, "/api/port-requests", {
     serverId,
-    port: 18080,
+    port,
     protocol: "TCP",
     purpose: `Smoke test port ${Date.now()}`,
     action: "OPEN",
@@ -236,6 +248,19 @@ async function findApprovalByRequestId(requestId, type) {
   });
 }
 
+async function logoutAndVerify(cookie) {
+  const logoutResponse = await fetch(`${baseUrl}/api/auth/logout`, {
+    method: "POST",
+    headers: { cookie },
+  });
+  assertStatus(logoutResponse, 200, "Logout should return 200");
+
+  const meResponse = await fetch(`${baseUrl}/api/auth/me`, {
+    headers: { cookie },
+  });
+  assertStatus(meResponse, 401, "Logged-out session should not access /api/auth/me");
+}
+
 async function postJson(cookie, path, body) {
   const response = await fetch(`${baseUrl}${path}`, {
     method: "POST",
@@ -249,6 +274,12 @@ async function postJson(cookie, path, body) {
     throw new Error(`POST ${path} failed with ${response.status}: ${await response.text()}`);
   }
   return response.json();
+}
+
+function assertStatus(response, expected, message) {
+  if (response.status !== expected) {
+    throw new Error(`${message}; got ${response.status}`);
+  }
 }
 
 main()

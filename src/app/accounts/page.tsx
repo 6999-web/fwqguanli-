@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { DataTable } from "@/components/ui/data-table";
 import { statusLabel } from "@/lib/format";
@@ -13,7 +13,7 @@ export default function AccountsPage() {
   const [credentials, setCredentials] = useState<Record<string, any>>({});
   const [role, setRole] = useState("");
 
-  async function loadCredentials(workspaceRows: any[]) {
+  const loadCredentials = useCallback(async (workspaceRows: any[]) => {
     const entries = await Promise.all(
       workspaceRows.map(async (workspace) => {
         const response = await fetch(`/api/workspaces/${workspace.id}/credentials`);
@@ -27,9 +27,9 @@ export default function AccountsPage() {
     setCredentials(
       Object.fromEntries(entries.filter((entry): entry is readonly [string, any] => Boolean(entry[1]))),
     );
-  }
+  }, []);
 
-  async function load() {
+  const load = useCallback(async () => {
     const [meRes, workspacesRes, requestsRes] = await Promise.all([
       fetch("/api/auth/me"),
       fetch("/api/workspaces"),
@@ -42,11 +42,17 @@ export default function AccountsPage() {
     setWorkspaces(workspaceRows);
     setRequests(requestRows);
     await loadCredentials(workspaceRows);
-  }
+  }, [loadCredentials]);
 
   useEffect(() => {
-    void load();
-  }, []);
+    const timer = window.setTimeout(() => {
+      void load();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [load]);
 
   async function action(id: string, kind: "start" | "stop" | "reset-password" | "delete") {
     const method = kind === "delete" ? "DELETE" : "POST";

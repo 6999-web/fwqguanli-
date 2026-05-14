@@ -36,7 +36,6 @@ async function main() {
   }
 
   const adminRole = await prisma.role.findUniqueOrThrow({ where: { code: RoleCode.ADMIN } });
-  const opsRole = await prisma.role.findUniqueOrThrow({ where: { code: RoleCode.OPS } });
   const userRole = await prisma.role.findUniqueOrThrow({ where: { code: RoleCode.USER } });
 
   const adminEmail = process.env.DEFAULT_ADMIN_EMAIL ?? "admin@opencode.local";
@@ -45,7 +44,6 @@ async function main() {
   for (const user of [
     { email: "user3@opencode.local", name: "Lab User 3", password: "User345678!", roleId: userRole.id },
     { email: adminEmail, name: "系统管理员", password: adminPassword, roleId: adminRole.id },
-    { email: "ops@opencode.local", name: "值班运维", password: "Ops123456!", roleId: opsRole.id },
     { email: "user@opencode.local", name: "实验室用户", password: "User123456!", roleId: userRole.id },
     { email: "user2@opencode.local", name: "实验室用户二", password: "User234567!", roleId: userRole.id },
   ]) {

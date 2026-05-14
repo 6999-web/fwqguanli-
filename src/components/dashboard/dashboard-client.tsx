@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { io } from "socket.io-client";
 import {
   Area,
@@ -304,11 +304,7 @@ function EmptyTrendState({ isCollecting }: { isCollecting: boolean }) {
 }
 
 function ChartPanel({ title, children }: { title: string; children: React.ReactNode }) {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useIsClient();
 
   return (
     <div>
@@ -327,11 +323,7 @@ function ChartPanel({ title, children }: { title: string; children: React.ReactN
 }
 
 function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useIsClient();
 
   return (
     <div className="rounded-lg border border-cyan-500/15 bg-[#06182f]/80 p-4">
@@ -346,6 +338,14 @@ function ChartCard({ title, children }: { title: string; children: React.ReactNo
         )}
       </div>
     </div>
+  );
+}
+
+function useIsClient() {
+  return useSyncExternalStore(
+    () => () => undefined,
+    () => true,
+    () => false,
   );
 }
 
