@@ -43,6 +43,7 @@ async function main() {
   const adminPassword = process.env.DEFAULT_ADMIN_PASSWORD ?? "ChangeMe123!";
 
   for (const user of [
+    { email: "user3@opencode.local", name: "Lab User 3", password: "User345678!", roleId: userRole.id },
     { email: adminEmail, name: "系统管理员", password: adminPassword, roleId: adminRole.id },
     { email: "ops@opencode.local", name: "值班运维", password: "Ops123456!", roleId: opsRole.id },
     { email: "user@opencode.local", name: "实验室用户", password: "User123456!", roleId: userRole.id },

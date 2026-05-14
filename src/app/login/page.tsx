@@ -37,13 +37,15 @@ export default function LoginPage() {
         <div className="text-sm uppercase tracking-[0.4em] text-cyan-300/70">OpenCode Ops</div>
         <h1 className="mt-4 text-3xl font-semibold">登录系统</h1>
         <p className="mt-2 text-sm text-slate-400">打开系统必须先输入账号和密码，页面不再默认展示任何密码。</p>
-        <form className="mt-8 space-y-4" onSubmit={onSubmit}>
+        <form className="mt-8 space-y-4" onSubmit={onSubmit} autoComplete="off">
           <label className="block">
             <div className="mb-2 text-sm text-slate-300">账号</div>
             <input
               className="w-full rounded-lg border border-cyan-500/20 bg-[#031224] px-4 py-3 outline-none ring-0 focus:border-cyan-400"
               value={email}
-              autoComplete="username"
+              name="login_email"
+              autoComplete="off"
+              spellCheck={false}
               onChange={(event) => setEmail(event.target.value)}
             />
           </label>
@@ -54,7 +56,8 @@ export default function LoginPage() {
                 type={showPassword ? "text" : "password"}
                 className="w-full bg-transparent px-4 py-3 outline-none"
                 value={password}
-                autoComplete="current-password"
+                name="login_password"
+                autoComplete="new-password"
                 onChange={(event) => setPassword(event.target.value)}
               />
               <button
