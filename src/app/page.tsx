@@ -9,6 +9,9 @@ export default async function HomePage() {
   if (!session) {
     redirect("/login");
   }
+  if (session.role === "USER") {
+    redirect("/accounts");
+  }
   const data = await getDashboardData();
   return (
     <AppShell>

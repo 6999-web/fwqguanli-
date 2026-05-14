@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
 import { useEffect, useState } from "react";
@@ -10,6 +9,7 @@ import { formatDateTime } from "@/lib/time";
 
 export default function AccountsPage() {
   const [workspaces, setWorkspaces] = useState<any[]>([]);
+  const [requests, setRequests] = useState<any[]>([]);
   const [credentials, setCredentials] = useState<Record<string, any>>({});
   const [role, setRole] = useState("");
 
@@ -20,7 +20,6 @@ export default function AccountsPage() {
         if (!response.ok) {
           return [workspace.id, null] as const;
         }
-
         return [workspace.id, await response.json()] as const;
       }),
     );
@@ -31,11 +30,17 @@ export default function AccountsPage() {
   }
 
   async function load() {
-    const [meRes, workspacesRes] = await Promise.all([fetch("/api/auth/me"), fetch("/api/workspaces")]);
+    const [meRes, workspacesRes, requestsRes] = await Promise.all([
+      fetch("/api/auth/me"),
+      fetch("/api/workspaces"),
+      fetch("/api/permission-requests"),
+    ]);
     const me = await meRes.json();
     const workspaceRows = await workspacesRes.json();
+    const requestRows = await requestsRes.json();
     setRole(me.role);
     setWorkspaces(workspaceRows);
+    setRequests(requestRows);
     await loadCredentials(workspaceRows);
   }
 
@@ -53,13 +58,27 @@ export default function AccountsPage() {
   return (
     <AppShell>
       <div className="p-6 text-white">
-        <h1 className="text-3xl font-semibold">工作区访问</h1>
+        <h1 className="text-3xl font-semibold">{role === "USER" ? "我的账号状态" : "工作区访问"}</h1>
         <p className="mt-2 text-sm text-slate-400">
-          这里展示平台发放的隔离工作区，以及审批通过后自动生成的 SSH 账号和密码。
+          {role === "USER"
+            ? "这里集中查看超级管理员分配给你的账号、密码、服务器地址，以及你自己的历史申请记录。"
+            : "这里展示平台发放的工作区，以及审批通过后自动生成的 SSH 账号和密码。"}
         </p>
+
         <div className="mt-6 space-y-6">
           <DataTable
-            columns={["工作区", "宿主机", "状态", "SSH 地址", "账号名称", "密码", "资源", "到期", "目录", "操作"]}
+            columns={[
+              "工作区",
+              "服务器",
+              "状态",
+              "服务器地址",
+              "账号",
+              "密码",
+              "资源",
+              "到期时间",
+              "目录",
+              "操作",
+            ]}
             rows={workspaces.map((workspace) => {
               const credential = credentials[workspace.id];
               return [
@@ -94,6 +113,27 @@ export default function AccountsPage() {
                 </div>,
               ];
             })}
+          />
+
+          <DataTable
+            columns={[
+              "申请类型",
+              "申请用途",
+              "目标服务器",
+              "状态",
+              "审批人",
+              "创建时间",
+              "最近工作区状态",
+            ]}
+            rows={requests.map((request) => [
+              request.requestType ?? "WORKSPACE_ACCESS",
+              request.purpose,
+              request.server?.serverCode ?? "系统自动分配",
+              statusLabel(request.status),
+              request.approver?.name ?? "-",
+              formatDateTime(request.createdAt),
+              request.latestWorkspace?.status ? statusLabel(request.latestWorkspace.status) : "-",
+            ])}
           />
         </div>
       </div>

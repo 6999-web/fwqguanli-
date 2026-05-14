@@ -299,6 +299,7 @@ async function writeRemoteFile(server: Server, path: string, content: string) {
 async function runRemoteCommand(server: Server, command: string) {
   const conn = await connectSSH({
     host: server.publicIp,
+    port: server.sshPort,
     username: server.serverUsername,
     password: decryptText(server.serverPassword),
   });

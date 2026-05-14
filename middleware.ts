@@ -1,27 +1,74 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { jwtVerify } from "jose";
 
-const PUBLIC_PATHS = ["/login", "/api/auth/login"];
+const COOKIE_NAME = "opencode_ops_token";
 
-export function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-  if (PUBLIC_PATHS.some((path) => pathname.startsWith(path))) {
-    return NextResponse.next();
+const roleRules: Array<{ prefix: string; roles: string[] }> = [
+  { prefix: "/approvals", roles: ["USER"] },
+  { prefix: "/accounts", roles: ["ADMIN", "USER"] },
+  { prefix: "/approval-center", roles: ["ADMIN", "OPS"] },
+  { prefix: "/handovers", roles: ["ADMIN", "OPS"] },
+  { prefix: "/servers", roles: ["ADMIN", "OPS"] },
+  { prefix: "/ports", roles: ["ADMIN", "OPS"] },
+  { prefix: "/alerts", roles: ["ADMIN", "OPS"] },
+  { prefix: "/inspections", roles: ["ADMIN", "OPS"] },
+  { prefix: "/assistant", roles: ["ADMIN", "OPS"] },
+  { prefix: "/audit-logs", roles: ["ADMIN"] },
+];
+
+function getSecret() {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error("JWT_SECRET is required");
   }
+  return new TextEncoder().encode(secret);
+}
 
-  if (pathname.startsWith("/api")) {
-    const token = request.cookies.get("opencode_ops_token")?.value;
-    if (!token) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
-    return NextResponse.next();
-  }
-
-  const token = request.cookies.get("opencode_ops_token")?.value;
+async function getSession(request: NextRequest) {
+  const token = request.cookies.get(COOKIE_NAME)?.value;
   if (!token) {
-    const loginUrl = new URL("/login", request.url);
-    return NextResponse.redirect(loginUrl);
+    return null;
   }
+
+  try {
+    const { payload } = await jwtVerify(token, getSecret());
+    return payload as { role?: string };
+  } catch {
+    return null;
+  }
+}
+
+export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  if (
+    pathname.startsWith("/api") ||
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/favicon") ||
+    pathname.startsWith("/api/auth/login") ||
+    pathname.startsWith("/api/auth/logout")
+  ) {
+    return NextResponse.next();
+  }
+
+  const session = await getSession(request);
+
+  if (pathname === "/login") {
+    if (!session) {
+      return NextResponse.next();
+    }
+    return NextResponse.redirect(new URL("/", request.url));
+  }
+
+  if (!session) {
+    return NextResponse.redirect(new URL("/login", request.url));
+  }
+
+  const matchedRule = roleRules.find((rule) => pathname === rule.prefix || pathname.startsWith(`${rule.prefix}/`));
+  if (matchedRule && !matchedRule.roles.includes(session.role ?? "")) {
+    return NextResponse.redirect(new URL("/", request.url));
+  }
+
   return NextResponse.next();
 }
 

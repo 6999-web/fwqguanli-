@@ -11,6 +11,7 @@ export async function POST(request: NextRequest) {
     where: { email: body.email },
     include: { role: true },
   });
+
   if (!user) {
     return NextResponse.json({ message: "账号不存在" }, { status: 400 });
   }
@@ -34,12 +35,12 @@ export async function POST(request: NextRequest) {
     role: user.role.code,
   });
 
+  const isSecure = request.nextUrl.protocol === "https:" || request.headers.get("x-forwarded-proto") === "https";
   response.cookies.set(COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: false,
+    secure: isSecure,
     path: "/",
-    maxAge: 60 * 60 * 24 * 7,
   });
 
   await writeAuditLog({

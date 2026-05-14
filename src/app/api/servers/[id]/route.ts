@@ -56,6 +56,7 @@ export async function PUT(
         privateIp: body.privateIp,
         provider: body.provider,
         serverUsername: body.serverUsername,
+        sshPort: body.sshPort ? Number(body.sshPort) : 1010,
         serverPassword: body.serverPassword ? encryptText(body.serverPassword) : undefined,
         purpose: body.purpose,
         currentOwnerId: body.currentOwnerId,

@@ -46,6 +46,7 @@ export async function POST(request: NextRequest) {
         privateIp: body.privateIp,
         provider: body.provider,
         serverUsername: body.serverUsername,
+        sshPort: body.sshPort ? Number(body.sshPort) : 1010,
         serverPassword: encryptText(body.serverPassword),
         purpose: body.purpose,
         currentOwnerId: body.currentOwnerId,

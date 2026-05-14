@@ -113,6 +113,7 @@ model Server {
   privateIp          String?
   provider           String?
   serverUsername     String
+  sshPort            Int                  @default(1010)
   serverPassword     String
   purpose            String?
   currentOwnerId     String?

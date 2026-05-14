@@ -32,8 +32,12 @@ export async function POST(request: NextRequest) {
       const region = row["地区"] ?? "北京";
       const publicIp = row["公网IP地址"];
       if (!publicIp) continue;
+
       const existing = await prisma.server.findUnique({ where: { publicIp } });
       const serverCode = existing?.serverCode ?? (await generateServerCode(region));
+      const serverUsername = String(row["服务器账号"] ?? "ubuntu");
+      const serverPassword = encryptText(String(row["服务器密码"] ?? ""));
+
       const server = await prisma.server.upsert({
         where: { publicIp },
         update: {
@@ -41,8 +45,9 @@ export async function POST(request: NextRequest) {
           loginEmail: String(row["登录邮箱"] ?? ""),
           loginEmailPassword: encryptText(String(row["密码"] ?? "")),
           region,
-          serverUsername: String(row["服务器账号"] ?? "ubuntu"),
-          serverPassword: encryptText(String(row["服务器密码"] ?? "")),
+          serverUsername,
+          sshPort: 1010,
+          serverPassword,
           provider: "Tencent Cloud",
           currentOwnerId: owner?.id,
         },
@@ -54,8 +59,9 @@ export async function POST(request: NextRequest) {
           region,
           publicIp,
           provider: "Tencent Cloud",
-          serverUsername: String(row["服务器账号"] ?? "ubuntu"),
-          serverPassword: encryptText(String(row["服务器密码"] ?? "")),
+          serverUsername,
+          sshPort: 1010,
+          serverPassword,
           purpose: "Excel 导入服务器",
           currentOwnerId: owner?.id,
         },

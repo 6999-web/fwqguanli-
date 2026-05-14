@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
         serverId: server.id,
         targetLabel: `宿主机 ${server.serverCode}`,
         host: server.publicIp,
-        port: 22,
+        port: server.sshPort,
         username: server.serverUsername,
         password: decryptText(server.serverPassword),
         cols: Number(body.cols) || 120,
@@ -64,6 +64,7 @@ export async function POST(request: NextRequest) {
           label: server.serverCode,
           host: server.publicIp,
           username: server.serverUsername,
+          port: server.sshPort,
         },
       });
     }

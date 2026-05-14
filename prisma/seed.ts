@@ -46,6 +46,7 @@ async function main() {
     { email: adminEmail, name: "系统管理员", password: adminPassword, roleId: adminRole.id },
     { email: "ops@opencode.local", name: "值班运维", password: "Ops123456!", roleId: opsRole.id },
     { email: "user@opencode.local", name: "实验室用户", password: "User123456!", roleId: userRole.id },
+    { email: "user2@opencode.local", name: "实验室用户二", password: "User234567!", roleId: userRole.id },
   ]) {
     await prisma.user.upsert({
       where: { email: user.email },
@@ -93,6 +94,7 @@ async function main() {
         loginEmailPassword: encryptText(String(row["密码"] ?? "")),
         region,
         serverUsername: String(row["服务器账号"] ?? "ubuntu"),
+        sshPort: 1010,
         serverPassword: encryptText(String(row["服务器密码"] ?? "")),
         provider: "Tencent Cloud",
         purpose: "实验室服务器资源池",
@@ -108,6 +110,7 @@ async function main() {
         publicIp,
         provider: "Tencent Cloud",
         serverUsername: String(row["服务器账号"] ?? "ubuntu"),
+        sshPort: 1010,
         serverPassword: encryptText(String(row["服务器密码"] ?? "")),
         purpose: "实验室服务器资源池",
         currentOwnerId: admin.id,

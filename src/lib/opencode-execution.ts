@@ -202,6 +202,7 @@ async function executeViaDirectServerSSH(payload: OpenCodeExecutionPayload & { s
   const analysis = analyzeDirectCommand(payload.prompt);
   const conn = await connectSSH({
     host: payload.server.publicIp,
+    port: payload.server.sshPort,
     username: payload.server.serverUsername,
     password: decryptText(payload.server.serverPassword),
   });

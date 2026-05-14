@@ -33,6 +33,7 @@ export async function execWhitelistedCommands<T extends readonly CommandKey[]>(
 ): Promise<Record<T[number], string>> {
   const conn = await connectSSH({
     host: server.publicIp,
+    port: server.sshPort,
     username: server.serverUsername,
     password: decryptText(server.serverPassword),
   });

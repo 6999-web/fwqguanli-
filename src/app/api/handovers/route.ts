@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { apiError } from "@/lib/api";
+import { decryptText } from "@/lib/crypto";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/rbac";
 import { decryptWorkspacePassword } from "@/lib/workspace-orchestrator";
@@ -21,7 +22,7 @@ export async function GET() {
         const accountName = item.workspace?.sshUsername ?? item.server.serverUsername;
         const accountPassword = item.workspace
           ? decryptWorkspacePassword(item.workspace)
-          : item.server.serverPassword;
+          : decryptText(item.server.serverPassword);
 
         return {
           id: item.id,
@@ -34,7 +35,7 @@ export async function GET() {
           accountName,
           accountPassword,
           accessHost: item.workspace?.sshHost ?? item.publicIp,
-          accessPort: item.workspace?.sshPort ?? 22,
+          accessPort: item.workspace?.sshPort ?? item.server.sshPort,
           handoverAt: item.handoverAt,
           plannedReturnAt: item.plannedReturnAt,
           actualReturnedAt: item.actualReturnedAt,
