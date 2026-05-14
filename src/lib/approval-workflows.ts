@@ -148,54 +148,78 @@ async function decideWorkspaceApproval(
       throw new Error("Target server not found");
     }
 
-    workspace = await provisionWorkspace({
-      server,
-      ownerId: permissionRequest.requesterId,
-      permissionRequestId: permissionRequest.id,
-      workspaceName: `${permissionRequest.requester.name}-${permissionRequest.purpose}`,
-      sshUsername: buildWorkspaceUsername(permissionRequest.requester.name, permissionRequest.id),
-      spec,
-    });
-
-    await prisma.server.update({
-      where: { id: server.id },
-      data: {
-        status: ServerStatus.IN_USE,
-      },
-    });
-
-    const handover = await prisma.handoverRecord.create({
-      data: {
-        serverId: server.id,
-        workspaceId: workspace.id,
+    try {
+      workspace = await provisionWorkspace({
+        server,
         ownerId: permissionRequest.requesterId,
-        publicIp: workspace.sshHost,
-        loginMethod: "WORKSPACE_SSH",
-        openPorts: {
-          sshPort: workspace.sshPort,
-          hostPortStart: workspace.hostPortStart,
-          hostPortEnd: workspace.hostPortEnd,
-        },
-        installedEnvironments: {
-          baseImage: workspace.baseImage,
-        },
-        plannedReturnAt: dueAt ?? undefined,
-      },
-    });
+        permissionRequestId: permissionRequest.id,
+        workspaceName: `${permissionRequest.requester.name}-${permissionRequest.purpose}`,
+        sshUsername: buildWorkspaceUsername(permissionRequest.requester.name, permissionRequest.id),
+        spec,
+      });
 
-    await prisma.permissionRequest.update({
-      where: { id: permissionRequest.id },
-      data: {
-        handoverId: handover.id,
-      },
-    });
+      await prisma.server.update({
+        where: { id: server.id },
+        data: {
+          status: ServerStatus.IN_USE,
+        },
+      });
 
-    await prisma.operationApproval.update({
-      where: { id: approval.id },
-      data: {
-        result: `工作区已分配，SSH ${workspace.sshHost}:${workspace.sshPort}，账号 ${workspace.sshUsername}，密码 ${decryptWorkspacePassword(workspace)}`,
-      },
-    });
+      const handover = await prisma.handoverRecord.create({
+        data: {
+          serverId: server.id,
+          workspaceId: workspace.id,
+          ownerId: permissionRequest.requesterId,
+          publicIp: workspace.sshHost,
+          loginMethod: "WORKSPACE_SSH",
+          openPorts: {
+            sshPort: workspace.sshPort,
+            hostPortStart: workspace.hostPortStart,
+            hostPortEnd: workspace.hostPortEnd,
+          },
+          installedEnvironments: {
+            baseImage: workspace.baseImage,
+          },
+          plannedReturnAt: dueAt ?? undefined,
+        },
+      });
+
+      await prisma.permissionRequest.update({
+        where: { id: permissionRequest.id },
+        data: {
+          handoverId: handover.id,
+        },
+      });
+
+      await prisma.operationApproval.update({
+        where: { id: approval.id },
+        data: {
+          result: `工作区已分配，SSH ${workspace.sshHost}:${workspace.sshPort}，账号 ${workspace.sshUsername}，密码 ${decryptWorkspacePassword(workspace)}`,
+        },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "workspace provisioning failed";
+      await prisma.$transaction([
+        prisma.permissionRequest.update({
+          where: { id: permissionRequest.id },
+          data: {
+            status: RequestStatus.PENDING,
+            approverId: null,
+            assignedServerId: null,
+            dueAt: null,
+          },
+        }),
+        prisma.operationApproval.update({
+          where: { id: approval.id },
+          data: {
+            status: RequestStatus.PENDING,
+            approverId: null,
+            result: `工作区创建失败：${message}`,
+          },
+        }),
+      ]);
+      throw error;
+    }
   }
 
   return {

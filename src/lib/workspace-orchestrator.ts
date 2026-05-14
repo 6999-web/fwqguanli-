@@ -9,7 +9,6 @@ import { generateWorkspacePassword } from "@/lib/workspace-password";
 
 const DEFAULT_BASE_IMAGE =
   process.env.WORKSPACE_BASE_IMAGE ?? "ghcr.io/opencode-ops/opencode-workspace:latest";
-const DEFAULT_ROOT = process.env.WORKSPACE_ROOT_DIR ?? "/opt/opencode-workspaces";
 const DEFAULT_GRACE_DAYS = Number(process.env.WORKSPACE_DEFAULT_GRACE_DAYS ?? 7);
 
 type WorkspaceSpec = {
@@ -46,7 +45,8 @@ export async function provisionWorkspace(options: {
   const slug = `workspace-${safeId.slice(0, 12)}`;
   const composeProjectName = `opsws_${safeId.slice(0, 12)}`;
   const containerName = `opsws-${safeId.slice(0, 12)}`;
-  const workingDirectory = `${DEFAULT_ROOT}/${workspaceId}`;
+  const workspaceRoot = resolveWorkspaceRoot(options.server.serverUsername);
+  const workingDirectory = `${workspaceRoot}/${workspaceId}`;
   const sshPassword = generateWorkspacePassword();
   const dueAt = options.spec.dueAt ?? null;
   const graceDays = Math.max(1, options.spec.graceDays ?? DEFAULT_GRACE_DAYS);
@@ -315,4 +315,16 @@ async function runRemoteCommand(server: Server, command: string) {
 
 function shellEscape(value: string) {
   return `'${value.replace(/'/g, `'\"'\"'`)}'`;
+}
+
+function resolveWorkspaceRoot(serverUsername: string) {
+  if (process.env.WORKSPACE_ROOT_DIR?.trim()) {
+    return process.env.WORKSPACE_ROOT_DIR.trim();
+  }
+
+  if (!serverUsername || serverUsername === "root") {
+    return "/root/opencode-workspaces";
+  }
+
+  return `/home/${serverUsername}/opencode-workspaces`;
 }
