@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import * as XLSX from "xlsx";
 import { PrismaClient, RoleCode, ServerStatus } from "@prisma/client";
 import { encryptText } from "../src/lib/crypto";
+import { normalizeSshPort } from "../src/lib/server-connection-config";
 
 const prisma = new PrismaClient();
 
@@ -85,6 +86,10 @@ async function main() {
     const existing = await prisma.server.findUnique({ where: { publicIp } });
     const serverCode = existing?.serverCode ?? (await nextServerCode(region));
 
+    const rawSshPort = row["SSH端口"] ?? row["sshPort"];
+    const sshPort = normalizeSshPort(rawSshPort);
+    const hasValidPort = sshPort !== null && sshPort > 0;
+
     await prisma.server.upsert({
       where: { publicIp },
       update: {
@@ -93,7 +98,7 @@ async function main() {
         loginEmailPassword: encryptText(String(row["密码"] ?? "")),
         region,
         serverUsername: String(row["服务器账号"] ?? "ubuntu"),
-        sshPort: Number(row["SSH端口"] ?? row["sshPort"] ?? 22),
+        sshPort: hasValidPort ? sshPort : undefined,
         serverPassword: encryptText(String(row["服务器密码"] ?? "")),
         provider: "Tencent Cloud",
         purpose: "实验室服务器资源池",
@@ -109,7 +114,7 @@ async function main() {
         publicIp,
         provider: "Tencent Cloud",
         serverUsername: String(row["服务器账号"] ?? "ubuntu"),
-        sshPort: Number(row["SSH端口"] ?? row["sshPort"] ?? 22),
+        sshPort: hasValidPort ? sshPort : 0,
         serverPassword: encryptText(String(row["服务器密码"] ?? "")),
         purpose: "实验室服务器资源池",
         currentOwnerId: admin.id,

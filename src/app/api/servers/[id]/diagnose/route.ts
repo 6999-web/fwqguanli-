@@ -26,7 +26,11 @@ export async function POST(
       module: "server",
       targetId: server.id,
       ipAddress: getRequestIp(request),
-      detail: diagnostic,
+      detail: {
+        ...diagnostic,
+        configuredPort: diagnostic.configuredPort,
+        probedPort: diagnostic.probedPort,
+      },
     });
 
     return NextResponse.json(diagnostic);

@@ -1,6 +1,7 @@
 import { Socket } from "net";
 import { type Server } from "@prisma/client";
 import { decryptText } from "@/lib/crypto";
+import { isValidSshPort } from "@/lib/server-connection-config";
 import { connectSSH, runSSHCommand, type SSHConnectionConfig } from "@/lib/ssh/client";
 
 export type ConnectivityPhase =
@@ -15,9 +16,11 @@ export type ConnectivityPhase =
 
 export type ConnectivityDiagnostic = {
   host: string;
-  port: number;
+  configuredPort: number | null;
+  probedPort: number | null;
   phase: ConnectivityPhase;
   reason: string;
+  nextAction: string;
   portReachable: boolean;
   handshakeOk: boolean;
   authOk: boolean;
@@ -25,20 +28,46 @@ export type ConnectivityDiagnostic = {
   checkedAt: string;
 };
 
+export type PortProbeResult = {
+  host: string;
+  port: number;
+  status: "open" | "refused" | "timeout" | "dns_unreachable" | "error";
+  reason: string;
+};
+
 export async function runServerConnectivityDiagnostic(server: Pick<Server, "publicIp" | "sshPort" | "serverUsername" | "serverPassword">) {
   const host = server.publicIp;
   const port = server.sshPort;
   const username = server.serverUsername;
-  const password = decryptText(server.serverPassword);
   const checkedAt = new Date().toISOString();
+
+  if (!isValidSshPort(port)) {
+    return {
+      host,
+      configuredPort: port ?? null,
+      probedPort: null,
+      phase: "TCP_REFUSED",
+      reason: "SSH port is missing or invalid in server configuration",
+      nextAction: "先在服务器恢复面板中确认真实 SSH 端口，再重新诊断或采集。",
+      portReachable: false,
+      handshakeOk: false,
+      authOk: false,
+      commandOk: false,
+      checkedAt,
+    } satisfies ConnectivityDiagnostic;
+  }
+
+  const password = decryptText(server.serverPassword);
 
   const tcp = await testTcpReachability(host, port);
   if (!tcp.ok) {
     return {
       host,
-      port,
+      configuredPort: port,
+      probedPort: port,
       phase: tcp.phase,
       reason: tcp.reason,
+      nextAction: nextActionForPhase(tcp.phase),
       portReachable: false,
       handshakeOk: false,
       authOk: false,
@@ -63,9 +92,11 @@ export async function runServerConnectivityDiagnostic(server: Pick<Server, "publ
       if (result.exitCode !== 0) {
         return {
           host,
-          port,
+          configuredPort: port,
+          probedPort: port,
           phase: "COMMAND_FAILED",
           reason: result.stderr || result.stdout || `Command exited with code ${result.exitCode}`,
+          nextAction: nextActionForPhase("COMMAND_FAILED"),
           portReachable: true,
           handshakeOk: true,
           authOk: true,
@@ -76,9 +107,11 @@ export async function runServerConnectivityDiagnostic(server: Pick<Server, "publ
 
       return {
         host,
-        port,
+        configuredPort: port,
+        probedPort: port,
         phase: "OK",
         reason: "SSH connection and command probe succeeded",
+        nextAction: nextActionForPhase("OK"),
         portReachable: true,
         handshakeOk: true,
         authOk: true,
@@ -121,7 +154,8 @@ export function classifySshError(error: unknown, options: { host: string; port: 
 }
 
 export function formatConnectivityAlert(diagnostic: ConnectivityDiagnostic) {
-  return `host=${diagnostic.host} port=${diagnostic.port} phase=${diagnostic.phase} reason=${diagnostic.reason}`;
+  const port = diagnostic.probedPort ?? diagnostic.configuredPort ?? 0;
+  return `host=${diagnostic.host} port=${port} phase=${diagnostic.phase} reason=${diagnostic.reason}`;
 }
 
 export function parseConnectivityAlert(description: string | null | undefined) {
@@ -140,6 +174,27 @@ export function parseConnectivityAlert(description: string | null | undefined) {
     phase: phaseMatch[1] as ConnectivityPhase,
     reason: reasonMatch?.[1] ?? description,
   };
+}
+
+export async function scanTcpPorts(host: string, ports: number[]) {
+  const results: PortProbeResult[] = [];
+  for (const port of ports) {
+    const result = await testTcpReachability(host, port);
+    if (result.ok) {
+      results.push({ host, port, status: "open", reason: "TCP connect succeeded" });
+      continue;
+    }
+    const status =
+      result.phase === "TCP_REFUSED"
+        ? "refused"
+        : result.phase === "TCP_TIMEOUT"
+          ? "timeout"
+          : result.phase === "DNS_UNREACHABLE"
+            ? "dns_unreachable"
+            : "error";
+    results.push({ host, port, status, reason: result.reason });
+  }
+  return results;
 }
 
 async function testTcpReachability(host: string, port: number, timeoutMs = Number(process.env.SSH_CONNECT_TIMEOUT_MS ?? 10000)) {
@@ -198,9 +253,11 @@ function diagnosticResult(
 ) {
   return {
     host: options.host,
-    port: options.port,
+    configuredPort: options.port,
+    probedPort: options.port,
     phase,
     reason,
+    nextAction: nextActionForPhase(phase),
     portReachable,
     handshakeOk,
     authOk,
@@ -221,4 +278,25 @@ export function buildDiagnosticConnectionConfig(server: Pick<Server, "publicIp" 
     username: server.serverUsername,
     password: decryptText(server.serverPassword),
   };
+}
+
+export function nextActionForPhase(phase: ConnectivityPhase) {
+  switch (phase) {
+    case "OK":
+      return "连接正常，可继续采集或打开终端。";
+    case "TCP_REFUSED":
+      return "目标机当前端口未监听或端口配置错误，请确认真实 SSH 端口和 sshd 监听配置。";
+    case "TCP_TIMEOUT":
+      return "更像安全组、防火墙或公网链路拦截，请先检查云安全组和主机防火墙。";
+    case "SSH_HANDSHAKE_TIMEOUT":
+      return "TCP 已通但 SSH 握手异常，请检查 sshd 服务状态、负载和中间网络设备。";
+    case "AUTH_FAILED":
+      return "端口可达但认证失败，请核对服务器账号、密码或密钥。";
+    case "COMMAND_FAILED":
+      return "SSH 已登录但探测命令执行失败，请检查远端 shell/权限环境。";
+    case "DNS_UNREACHABLE":
+      return "目标地址无法解析或不可达，请确认公网 IP 或 DNS 配置。";
+    default:
+      return "请先确认连接配置，再结合云侧网络和主机 SSH 配置排查。";
+  }
 }

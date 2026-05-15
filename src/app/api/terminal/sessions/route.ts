@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiError, getRequestIp } from "@/lib/api";
+import { writeAuditLog } from "@/lib/audit";
 import { decryptText } from "@/lib/crypto";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/rbac";
-import { writeAuditLog } from "@/lib/audit";
+import { canAttemptServerConnection } from "@/lib/server-connection-config";
+import { resolveServerSshConfig } from "@/lib/server-ssh";
 import { createTerminalSession } from "@/lib/terminal-runtime";
 import { decryptWorkspacePassword } from "@/lib/workspace-orchestrator";
 
@@ -15,7 +17,10 @@ export async function POST(request: NextRequest) {
 
     if (mode === "server") {
       if (user.role.code !== "ADMIN") {
-        return NextResponse.json({ message: "Only admins can open host SSH sessions" }, { status: 403 });
+        return NextResponse.json(
+          { message: "Only admins can open host SSH sessions" },
+          { status: 403 },
+        );
       }
       if (!body.serverId) {
         return NextResponse.json({ message: "Missing serverId" }, { status: 400 });
@@ -28,18 +33,26 @@ export async function POST(request: NextRequest) {
       if (!server) {
         return NextResponse.json({ message: "Target server not found" }, { status: 404 });
       }
+      if (!canAttemptServerConnection(server) && !server.serverPassword) {
+        return NextResponse.json(
+          { message: "SSH connection configuration is incomplete" },
+          { status: 400 },
+        );
+      }
 
+      const resolved = await resolveServerSshConfig(server);
       const session = createTerminalSession({
         userId: user.id,
         serverId: server.id,
         targetLabel: `宿主机 ${server.serverCode}`,
         host: server.publicIp,
-        port: server.sshPort,
+        port: resolved.port,
         username: server.serverUsername,
-        password: decryptText(server.serverPassword),
+        password: resolved.password ?? decryptText(server.serverPassword),
         cols: Number(body.cols) || 120,
         rows: Number(body.rows) || 32,
-        initialCommand: typeof body.initialCommand === "string" ? body.initialCommand : undefined,
+        initialCommand:
+          typeof body.initialCommand === "string" ? body.initialCommand : undefined,
       });
 
       await writeAuditLog({
@@ -53,6 +66,8 @@ export async function POST(request: NextRequest) {
           serverId: server.id,
           serverCode: server.serverCode,
           host: server.publicIp,
+          port: resolved.port,
+          resolvedFromFallback: resolved.resolvedFromFallback,
         },
       });
 
@@ -64,7 +79,7 @@ export async function POST(request: NextRequest) {
           label: server.serverCode,
           host: server.publicIp,
           username: server.serverUsername,
-          port: server.sshPort,
+          port: resolved.port,
         },
       });
     }
@@ -77,7 +92,9 @@ export async function POST(request: NextRequest) {
       where: {
         id: body.workspaceId,
         deletedAt: null,
-        ...(user.role.code === "ADMIN" || user.role.code === "OPS" ? {} : { ownerId: user.id }),
+        ...(user.role.code === "ADMIN" || user.role.code === "OPS"
+          ? {}
+          : { ownerId: user.id }),
       },
       include: {
         owner: true,

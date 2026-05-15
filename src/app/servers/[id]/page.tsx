@@ -2,10 +2,12 @@
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { ServerDiagnoseButton } from "@/components/servers/server-diagnose-button";
+import { ServerRecoveryPanel } from "@/components/servers/server-recovery-panel";
 import { DataTable } from "@/components/ui/data-table";
 import { getCurrentUser } from "@/lib/auth";
 import { maskEmail } from "@/lib/crypto";
-import { connectivityPhaseLabel, statusLabel } from "@/lib/format";
+import { connectionConfigStateLabel, connectivityPhaseLabel, statusLabel } from "@/lib/format";
+import { getConnectionConfigState } from "@/lib/server-connection-config";
 import { prisma } from "@/lib/prisma";
 import { parseConnectivityAlert } from "@/lib/ssh/diagnostics";
 import { formatDateTime } from "@/lib/time";
@@ -27,10 +29,9 @@ async function getServer(id: string) {
 
   return {
     ...server,
+    connectionConfigState: getConnectionConfigState(server),
     loginEmail: user?.role.code === "ADMIN" ? server.loginEmail : maskEmail(server.loginEmail),
-    latestConnectivityIssue: server.alerts
-      .map((alert) => parseConnectivityAlert(alert.description))
-      .find(Boolean),
+    latestConnectivityIssue: server.alerts.map((alert) => parseConnectivityAlert(alert.description)).find(Boolean),
   };
 }
 
@@ -41,13 +42,15 @@ export default async function ServerDetailPage({
 }) {
   const { id } = await params;
   const server = await getServer(id);
+  const connectionReady = server.connectionConfigState === "READY";
 
   return (
     <AppShell>
       <div className="p-6 text-white">
         <h1 className="text-3xl font-semibold">{server.serverCode}</h1>
         <p className="mt-2 text-slate-400">
-          {server.publicIp}:{server.sshPort}
+          {server.publicIp}
+          {server.sshPort > 0 ? `:${server.sshPort}` : " / 端口待确认"}
         </p>
 
         <div className="mt-6 grid gap-4 lg:grid-cols-4">
@@ -56,23 +59,21 @@ export default async function ServerDetailPage({
             <Meta label="服务商" value={server.provider ?? "Unknown"} />
             <Meta label="状态" value={statusLabel(server.status)} />
             <Meta label="登录邮箱" value={server.loginEmail} />
+            <Meta label="连接配置" value={connectionConfigStateLabel(server.connectionConfigState)} />
           </Card>
           <Card title="连接诊断">
             <Meta
               label="最近一次阶段"
-              value={
-                server.latestConnectivityIssue
-                  ? connectivityPhaseLabel(server.latestConnectivityIssue.phase)
-                  : "暂无异常"
-              }
+              value={server.latestConnectivityIssue ? connectivityPhaseLabel(server.latestConnectivityIssue.phase) : "暂无异常"}
             />
             <Meta
               label="原因"
-              value={server.latestConnectivityIssue?.reason ?? "最近一次采集没有连接异常"}
+              value={server.latestConnectivityIssue?.reason ?? "最近一次采集没有记录连接异常"}
             />
             <div className="pt-2">
-              <ServerDiagnoseButton serverId={server.id} />
+              <ServerDiagnoseButton serverId={server.id} disabled={!connectionReady} />
             </div>
+            <ServerRecoveryPanel serverId={server.id} />
           </Card>
           <Card title="硬件配置">
             <Meta label="CPU 配置" value={server.cpuSpec ?? "待补充"} />

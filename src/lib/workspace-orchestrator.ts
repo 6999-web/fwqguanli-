@@ -3,7 +3,8 @@ import { WorkspaceStatus, type Server, type Workspace } from "@prisma/client";
 import { decryptText, encryptText } from "@/lib/crypto";
 import { prisma } from "@/lib/prisma";
 import { syncManagedServerStatus } from "@/lib/server-status";
-import { connectSSH, runSSHCommand } from "@/lib/ssh/client";
+import { runSSHCommand } from "@/lib/ssh/client";
+import { connectToServer } from "@/lib/server-ssh";
 import { buildWorkspaceFilesystem } from "@/lib/workspace-compose";
 import { ensureWorkspacePorts } from "@/lib/workspace-port-allocation";
 import { generateWorkspacePassword } from "@/lib/workspace-password";
@@ -310,12 +311,7 @@ async function writeRemoteFile(server: Server, path: string, content: string) {
 }
 
 async function runRemoteCommand(server: Server, command: string) {
-  const conn = await connectSSH({
-    host: server.publicIp,
-    port: server.sshPort,
-    username: server.serverUsername,
-    password: decryptText(server.serverPassword),
-  });
+  const { conn } = await connectToServer(server);
   try {
     const wrapped = `export PATH="$PATH:/usr/local/bin:/usr/bin:/bin" && ${command}`;
     const result = await runSSHCommand(conn, `bash -lc ${shellEscape(wrapped)}`);

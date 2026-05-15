@@ -4,18 +4,21 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { ServerDiagnoseButton } from "@/components/servers/server-diagnose-button";
+import { ServerRecoveryPanel } from "@/components/servers/server-recovery-panel";
 import { DataTable } from "@/components/ui/data-table";
-import { connectivityPhaseLabel, statusLabel } from "@/lib/format";
+import { cn, connectionConfigStateLabel, connectivityPhaseLabel, statusLabel } from "@/lib/format";
 
 type ServerRow = {
   id: string;
   serverCode: string;
   region: string;
   publicIp: string;
+  sshPort: number;
   provider?: string;
   purpose?: string;
   status: string;
   loginEmail: string;
+  connectionConfigState: string;
   currentOwner?: { name: string } | null;
   metrics: Array<{ cpuUsage: number; memoryUsage: number; diskUsage: number }>;
   latestConnectivityIssue?: { phase: string; reason: string } | null;
@@ -25,15 +28,29 @@ export default function ServersPage() {
   const [servers, setServers] = useState<ServerRow[]>([]);
   const [keyword, setKeyword] = useState("");
 
+  async function loadServers() {
+    const response = await fetch("/api/servers");
+    const payload = await response.json();
+    setServers(payload);
+  }
+
   useEffect(() => {
-    fetch("/api/servers")
-      .then((res) => res.json())
-      .then(setServers);
+    const timer = window.setTimeout(() => {
+      void loadServers();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   const filtered = useMemo(() => {
     return servers.filter((server) =>
-      [server.serverCode, server.publicIp, server.region, server.currentOwner?.name ?? "", server.latestConnectivityIssue?.phase ?? ""]
+      [
+        server.serverCode,
+        server.publicIp,
+        server.region,
+        server.currentOwner?.name ?? "",
+        server.latestConnectivityIssue?.phase ?? "",
+        server.connectionConfigState,
+      ]
         .join(" ")
         .toLowerCase()
         .includes(keyword.toLowerCase()),
@@ -45,30 +62,40 @@ export default function ServersPage() {
       <div className="p-6 text-white">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-semibold">服务器资产</h1>
+            <h1 className="text-3xl font-semibold">服务器资源</h1>
             <p className="mt-2 text-sm text-slate-400">
-              这里统一查看服务器清单、最近一次连接异常、手动采集和连接诊断结果。
+              统一查看连接状态、最近一次连通性异常，并在端口未确认时直接发起恢复扫描。
             </p>
           </div>
           <input
             className="rounded-lg border border-cyan-500/20 bg-[#06182f] px-4 py-3 text-white outline-none"
-            placeholder="搜索编号 / IP / 地区 / 负责人 / 连接阶段"
+            placeholder="搜索编号 / IP / 地区 / 负责人 / 连接状态"
             value={keyword}
             onChange={(event) => setKeyword(event.target.value)}
           />
         </div>
 
         <DataTable
-          columns={["服务器编号", "公网 IP", "地区", "服务商", "负责人", "状态", "资源概况", "最近连接问题", "登录邮箱", "操作"]}
+          columns={["服务器编号", "公网 IP", "地区", "服务商", "负责人", "状态", "连接配置", "资源概况", "最近连接问题", "登录邮箱", "操作"]}
           rows={filtered.map((server) => {
             const latest = server.metrics[0];
+            const connectionReady = server.connectionConfigState === "READY";
             return [
               server.serverCode,
-              server.publicIp,
+              `${server.publicIp}${server.sshPort > 0 ? `:${server.sshPort}` : ""}`,
               server.region,
               server.provider ?? "Unknown",
               server.currentOwner?.name ?? "未分配",
               statusLabel(server.status),
+              <span
+                key={`${server.id}-config`}
+                className={cn(
+                  "inline-flex rounded px-2 py-1 text-xs",
+                  connectionReady ? "bg-emerald-500/10 text-emerald-200" : "bg-amber-500/10 text-amber-100",
+                )}
+              >
+                {connectionConfigStateLabel(server.connectionConfigState)}
+              </span>,
               latest
                 ? `CPU ${latest.cpuUsage.toFixed(1)}% / MEM ${latest.memoryUsage.toFixed(1)}% / DISK ${latest.diskUsage.toFixed(1)}%`
                 : "待采集",
@@ -82,7 +109,7 @@ export default function ServersPage() {
                     详情
                   </Link>
                   <button
-                    className="rounded bg-indigo-500/10 px-3 py-1 text-indigo-200"
+                    className="rounded bg-indigo-500/10 px-3 py-1 text-indigo-200 disabled:cursor-not-allowed disabled:opacity-60"
                     onClick={async () => {
                       const response = await fetch(`/api/servers/${server.id}/collect`, { method: "POST" });
                       if (!response.ok) {
@@ -93,13 +120,15 @@ export default function ServersPage() {
                         alert(message);
                         return;
                       }
-                      location.reload();
+                      await loadServers();
                     }}
+                    disabled={!connectionReady}
                   >
                     采集
                   </button>
                 </div>
-                <ServerDiagnoseButton serverId={server.id} compact />
+                <ServerDiagnoseButton serverId={server.id} compact disabled={!connectionReady} />
+                <ServerRecoveryPanel serverId={server.id} compact onRecovered={() => void loadServers()} />
               </div>,
             ];
           })}

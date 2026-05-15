@@ -1,6 +1,7 @@
 import { RiskLevel, Server } from "@prisma/client";
 import { decryptText } from "@/lib/crypto";
 import { analyzeDirectCommand, analyzeOpsPrompt, isDirectShellCommand } from "@/lib/opencode";
+import { connectToServer } from "@/lib/server-ssh";
 import { assessCommandRisk, execWhitelistedCommand } from "@/lib/ssh/executor";
 import { READ_ONLY_COMMANDS } from "@/lib/ssh/commands";
 import { connectSSH, runSSHCommand } from "@/lib/ssh/client";
@@ -200,12 +201,7 @@ async function executeSuggestedWorkflow(
 
 async function executeViaDirectServerSSH(payload: OpenCodeExecutionPayload & { server: Server }) {
   const analysis = analyzeDirectCommand(payload.prompt);
-  const conn = await connectSSH({
-    host: payload.server.publicIp,
-    port: payload.server.sshPort,
-    username: payload.server.serverUsername,
-    password: decryptText(payload.server.serverPassword),
-  });
+  const { conn } = await connectToServer(payload.server);
 
   try {
     const result = await runSSHCommand(conn, payload.prompt);

@@ -4,6 +4,7 @@ import { writeAuditLog } from "@/lib/audit";
 import { collectServerMetrics } from "@/lib/collector";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/rbac";
+import { canAttemptServerConnection } from "@/lib/server-connection-config";
 import { runServerConnectivityDiagnostic } from "@/lib/ssh/diagnostics";
 
 export async function POST(
@@ -18,6 +19,15 @@ export async function POST(
     const server = await prisma.server.findUnique({ where: { id } });
     if (!server) {
       return NextResponse.json({ message: "Server not found" }, { status: 404 });
+    }
+    if (!canAttemptServerConnection(server) && !server.serverPassword) {
+      return NextResponse.json(
+        {
+          message: "SSH connection configuration is incomplete. Confirm the SSH port before collecting metrics.",
+          diagnostic: await runServerConnectivityDiagnostic(server),
+        },
+        { status: 400 },
+      );
     }
     const metric = await collectServerMetrics(server);
     await writeAuditLog({

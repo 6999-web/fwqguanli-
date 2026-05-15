@@ -77,3 +77,15 @@ export function connectivityPhaseLabel(phase: string | null | undefined) {
   if (!phase) return "-";
   return map[phase] ?? phase;
 }
+
+export function connectionConfigStateLabel(state: string | null | undefined) {
+  const map: Record<string, string> = {
+    READY: "连接配置完整",
+    MISSING_PORT: "端口待确认",
+    MISSING_PASSWORD: "密码缺失",
+    INVALID: "配置不完整",
+  };
+
+  if (!state) return "-";
+  return map[state] ?? state;
+}

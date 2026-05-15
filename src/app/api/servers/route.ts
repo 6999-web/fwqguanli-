@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { ServerStatus } from "@prisma/client";
 import { apiError, getRequestIp } from "@/lib/api";
 import { sanitizeServer } from "@/lib/api-serializers";
+import { writeAuditLog } from "@/lib/audit";
+import { encryptText } from "@/lib/crypto";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/rbac";
-import { encryptText } from "@/lib/crypto";
+import { normalizeSshPort } from "@/lib/server-connection-config";
 import { generateServerCode } from "@/lib/server-code";
-import { writeAuditLog } from "@/lib/audit";
 
 export async function GET() {
   try {
@@ -34,9 +35,7 @@ export async function GET() {
       );
     }
 
-    return NextResponse.json(
-      servers.map((server) => sanitizeServer(server, user.role.code)),
-    );
+    return NextResponse.json(servers.map((server) => sanitizeServer(server, user.role.code)));
   } catch (error) {
     return apiError(error);
   }
@@ -47,6 +46,7 @@ export async function POST(request: NextRequest) {
     const user = await requirePermission("server:write");
     const body = await request.json();
     const serverCode = await generateServerCode(body.region);
+    const sshPort = normalizeSshPort(body.sshPort);
 
     const created = await prisma.server.create({
       data: {
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
         privateIp: body.privateIp,
         provider: body.provider,
         serverUsername: body.serverUsername,
-        sshPort: body.sshPort ? Number(body.sshPort) : 22,
+        sshPort: sshPort ?? 0,
         serverPassword: encryptText(body.serverPassword),
         purpose: body.purpose,
         currentOwnerId: body.currentOwnerId,
@@ -82,7 +82,15 @@ export async function POST(request: NextRequest) {
       module: "server",
       targetId: created.id,
       ipAddress: getRequestIp(request),
-      detail: { serverCode: created.serverCode, publicIp: created.publicIp },
+      detail: {
+        serverCode: created.serverCode,
+        publicIp: created.publicIp,
+        connectionConfigChange: {
+          source: "create",
+          previousPort: null,
+          nextPort: created.sshPort,
+        },
+      },
     });
 
     return NextResponse.json(sanitizeServer(created, user.role.code));

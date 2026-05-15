@@ -4,8 +4,11 @@ import { useState } from "react";
 import { connectivityPhaseLabel } from "@/lib/format";
 
 type Diagnostic = {
+  configuredPort: number | null;
+  probedPort: number | null;
   phase: string;
   reason: string;
+  nextAction: string;
   portReachable: boolean;
   handshakeOk: boolean;
   authOk: boolean;
@@ -15,9 +18,11 @@ type Diagnostic = {
 export function ServerDiagnoseButton({
   serverId,
   compact = false,
+  disabled = false,
 }: {
   serverId: string;
   compact?: boolean;
+  disabled?: boolean;
 }) {
   const [loading, setLoading] = useState(false);
   const [diagnostic, setDiagnostic] = useState<Diagnostic | null>(null);
@@ -43,17 +48,22 @@ export function ServerDiagnoseButton({
   return (
     <div className={compact ? "space-y-2" : "space-y-3"}>
       <button
-        className="rounded bg-violet-500/10 px-3 py-1 text-violet-100"
+        className="rounded bg-violet-500/10 px-3 py-1 text-violet-100 disabled:cursor-not-allowed disabled:opacity-60"
         onClick={() => void runDiagnosis()}
-        disabled={loading}
+        disabled={loading || disabled}
       >
         {loading ? "诊断中..." : "诊断"}
       </button>
+      {disabled ? <div className="text-xs text-amber-200">SSH 端口未确认，先完成端口恢复再诊断。</div> : null}
       {error ? <div className="text-xs text-rose-300">{error}</div> : null}
       {diagnostic ? (
         <div className="rounded border border-cyan-500/10 bg-[#091e39] p-3 text-xs text-slate-300">
           <div className="font-medium text-cyan-100">{connectivityPhaseLabel(diagnostic.phase)}</div>
+          <div className="mt-1 text-slate-400">
+            配置端口: {diagnostic.configuredPort ?? "-"} / 探测端口: {diagnostic.probedPort ?? "-"}
+          </div>
           <div className="mt-1 break-all text-slate-400">{diagnostic.reason}</div>
+          <div className="mt-2 text-amber-200">{diagnostic.nextAction}</div>
           <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-400">
             <span>TCP {diagnostic.portReachable ? "OK" : "FAIL"}</span>
             <span>Handshake {diagnostic.handshakeOk ? "OK" : "FAIL"}</span>

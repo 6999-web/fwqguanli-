@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiError, getRequestIp } from "@/lib/api";
 import { sanitizeServer } from "@/lib/api-serializers";
+import { writeAuditLog } from "@/lib/audit";
+import { encryptText } from "@/lib/crypto";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/rbac";
-import { encryptText } from "@/lib/crypto";
-import { writeAuditLog } from "@/lib/audit";
+import { normalizeSshPort } from "@/lib/server-connection-config";
 
 export async function GET(
   _request: NextRequest,
@@ -42,6 +43,14 @@ export async function PUT(
     const user = await requirePermission("server:write");
     const { id } = await params;
     const body = await request.json();
+    const current = await prisma.server.findUnique({ where: { id } });
+
+    if (!current) {
+      return NextResponse.json({ message: "Not found" }, { status: 404 });
+    }
+
+    const hasSshPort = Object.prototype.hasOwnProperty.call(body, "sshPort");
+    const nextSshPort = hasSshPort ? normalizeSshPort(body.sshPort) : null;
 
     const updated = await prisma.server.update({
       where: { id },
@@ -56,7 +65,7 @@ export async function PUT(
         privateIp: body.privateIp,
         provider: body.provider,
         serverUsername: body.serverUsername,
-        sshPort: body.sshPort ? Number(body.sshPort) : 22,
+        sshPort: hasSshPort ? (nextSshPort ?? 0) : undefined,
         serverPassword: body.serverPassword ? encryptText(body.serverPassword) : undefined,
         purpose: body.purpose,
         currentOwnerId: body.currentOwnerId,
@@ -79,7 +88,16 @@ export async function PUT(
       module: "server",
       targetId: updated.id,
       ipAddress: getRequestIp(request),
-      detail: body,
+      detail: {
+        ...body,
+        connectionConfigChange: hasSshPort
+          ? {
+              source: "update",
+              previousPort: current.sshPort,
+              nextPort: updated.sshPort,
+            }
+          : undefined,
+      },
     });
 
     return NextResponse.json(sanitizeServer(updated, user.role.code));

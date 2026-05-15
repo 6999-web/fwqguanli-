@@ -1,6 +1,6 @@
 import { Server } from "@prisma/client";
-import { decryptText } from "@/lib/crypto";
 import { connectSSH, runSSHCommand } from "@/lib/ssh/client";
+import { connectToServer } from "@/lib/server-ssh";
 import { HIGH_RISK_PATTERNS, LOW_RISK_KEYWORDS, READ_ONLY_COMMANDS } from "@/lib/ssh/commands";
 
 type CommandKey = keyof typeof READ_ONLY_COMMANDS;
@@ -31,12 +31,7 @@ export async function execWhitelistedCommands<T extends readonly CommandKey[]>(
   server: Server,
   commandKeys: T,
 ): Promise<Record<T[number], string>> {
-  const conn = await connectSSH({
-    host: server.publicIp,
-    port: server.sshPort,
-    username: server.serverUsername,
-    password: decryptText(server.serverPassword),
-  });
+  const { conn } = await connectToServer(server);
 
   try {
     const results: Partial<Record<CommandKey, string>> = {};

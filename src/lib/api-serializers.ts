@@ -1,5 +1,6 @@
 import { RoleCode } from "@prisma/client";
 import { maskEmail } from "@/lib/crypto";
+import { getConnectionConfigState } from "@/lib/server-connection-config";
 import { parseConnectivityAlert } from "@/lib/ssh/diagnostics";
 
 type UserLike = {
@@ -49,6 +50,7 @@ export function sanitizeServer(server: ServerLike, viewerRole: RoleCode) {
     loginEmail: viewerRole === RoleCode.ADMIN ? server.loginEmail : maskEmail(server.loginEmail),
     loginEmailPassword: viewerRole === RoleCode.ADMIN ? "encrypted" : "******",
     serverPassword: "******",
+    connectionConfigState: getConnectionConfigState(server),
     latestConnectivityIssue,
   };
 }
