@@ -1,5 +1,6 @@
 import { RoleCode } from "@prisma/client";
 import { maskEmail } from "@/lib/crypto";
+import { parseConnectivityAlert } from "@/lib/ssh/diagnostics";
 
 type UserLike = {
   id: string;
@@ -17,6 +18,7 @@ type ServerLike = {
   serverPassword?: string | null;
   currentOwner?: UserLike;
   backupOwner?: UserLike;
+  alerts?: Array<{ description?: string | null } | null> | null;
   [key: string]: unknown;
 } | null | undefined;
 
@@ -36,13 +38,18 @@ export function sanitizeUser(user: UserLike) {
 export function sanitizeServer(server: ServerLike, viewerRole: RoleCode) {
   if (!server) return null;
 
+  const latestConnectivityIssue = (server.alerts ?? [])
+    .map((alert) => parseConnectivityAlert(alert?.description))
+    .find(Boolean);
+
   return {
     ...server,
     currentOwner: sanitizeUser(server.currentOwner),
     backupOwner: sanitizeUser(server.backupOwner),
     loginEmail: viewerRole === RoleCode.ADMIN ? server.loginEmail : maskEmail(server.loginEmail),
-    loginEmailPassword: viewerRole === RoleCode.ADMIN ? "已加密存储" : "******",
+    loginEmailPassword: viewerRole === RoleCode.ADMIN ? "encrypted" : "******",
     serverPassword: "******",
+    latestConnectivityIssue,
   };
 }
 

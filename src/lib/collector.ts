@@ -1,6 +1,8 @@
-import { AlertLevel, AlertType, Server, ServerStatus } from "@prisma/client";
+import { AlertLevel, AlertType, Server } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { emitSocketEvent } from "@/lib/socket";
+import { syncManagedServerStatus } from "@/lib/server-status";
+import { classifySshError, formatConnectivityAlert } from "@/lib/ssh/diagnostics";
 import { execWhitelistedCommands } from "@/lib/ssh/executor";
 
 function parseNetwork(raw: string) {
@@ -250,7 +252,6 @@ export async function collectServerMetrics(server: Server) {
     await prisma.server.update({
       where: { id: server.id },
       data: {
-        status: ServerStatus.IN_USE,
         osVersion,
         cpuSpec: normalizeSpec(commandResults.cpuSpec),
         memorySpec: normalizeSpec(commandResults.memorySpec),
@@ -267,6 +268,8 @@ export async function collectServerMetrics(server: Server) {
       Number(commandResults.disk),
     );
 
+    await syncManagedServerStatus(server.id);
+
     emitSocketEvent("metrics:update", {
       serverId: server.id,
       serverCode: server.serverCode,
@@ -275,9 +278,14 @@ export async function collectServerMetrics(server: Server) {
 
     return metric;
   } catch (error) {
+    const diagnostic = classifySshError(error, {
+      host: server.publicIp,
+      port: server.sshPort,
+    });
+
     await prisma.server.update({
       where: { id: server.id },
-      data: { status: ServerStatus.ERROR },
+      data: { status: "ERROR" },
     });
     await prisma.alert.create({
       data: {
@@ -285,7 +293,7 @@ export async function collectServerMetrics(server: Server) {
         type: AlertType.SERVER_OFFLINE,
         level: AlertLevel.CRITICAL,
         title: "Collector failed",
-        description: error instanceof Error ? error.message : "Unknown collector error",
+        description: formatConnectivityAlert(diagnostic),
       },
     });
     throw error;

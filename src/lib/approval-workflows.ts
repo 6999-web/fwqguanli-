@@ -1,5 +1,6 @@
-import { Prisma, RequestStatus, RiskLevel, ServerStatus, type OperationApproval, type User } from "@prisma/client";
+import { Prisma, RequestStatus, RiskLevel, type OperationApproval, type User } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { syncManagedServerStatus } from "@/lib/server-status";
 import { executeOpenCodeTask } from "@/lib/opencode-execution";
 import { decryptWorkspacePassword, provisionWorkspace } from "@/lib/workspace-orchestrator";
 
@@ -158,12 +159,7 @@ async function decideWorkspaceApproval(
         spec,
       });
 
-      await prisma.server.update({
-        where: { id: server.id },
-        data: {
-          status: ServerStatus.IN_USE,
-        },
-      });
+      await syncManagedServerStatus(server.id);
 
       await createWorkspaceHandover({
         workspace,

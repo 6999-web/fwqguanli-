@@ -17,6 +17,7 @@ export async function GET() {
         backupOwner: true,
         environment: true,
         metrics: { orderBy: { collectedAt: "desc" }, take: 1 },
+        alerts: { orderBy: { detectedAt: "desc" }, take: 1 },
       },
       orderBy: { createdAt: "desc" },
     });

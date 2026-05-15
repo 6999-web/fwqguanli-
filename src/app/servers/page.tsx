@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/layout/app-shell";
+import { ServerDiagnoseButton } from "@/components/servers/server-diagnose-button";
 import { DataTable } from "@/components/ui/data-table";
-import { statusLabel } from "@/lib/format";
+import { connectivityPhaseLabel, statusLabel } from "@/lib/format";
 
 type ServerRow = {
   id: string;
@@ -17,6 +18,7 @@ type ServerRow = {
   loginEmail: string;
   currentOwner?: { name: string } | null;
   metrics: Array<{ cpuUsage: number; memoryUsage: number; diskUsage: number }>;
+  latestConnectivityIssue?: { phase: string; reason: string } | null;
 };
 
 export default function ServersPage() {
@@ -31,7 +33,7 @@ export default function ServersPage() {
 
   const filtered = useMemo(() => {
     return servers.filter((server) =>
-      [server.serverCode, server.publicIp, server.region, server.currentOwner?.name ?? ""]
+      [server.serverCode, server.publicIp, server.region, server.currentOwner?.name ?? "", server.latestConnectivityIssue?.phase ?? ""]
         .join(" ")
         .toLowerCase()
         .includes(keyword.toLowerCase()),
@@ -40,21 +42,24 @@ export default function ServersPage() {
 
   return (
     <AppShell>
-      <div className="p-6">
+      <div className="p-6 text-white">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-semibold text-white">服务器资产管理</h1>
-            <p className="mt-2 text-sm text-slate-400">支持搜索、详情查看、敏感字段脱敏展示与手动采集。</p>
+            <h1 className="text-3xl font-semibold">服务器资产</h1>
+            <p className="mt-2 text-sm text-slate-400">
+              这里统一查看服务器清单、最近一次连接异常、手动采集和连接诊断结果。
+            </p>
           </div>
           <input
             className="rounded-lg border border-cyan-500/20 bg-[#06182f] px-4 py-3 text-white outline-none"
-            placeholder="搜索编号 / IP / 地区 / 负责人"
+            placeholder="搜索编号 / IP / 地区 / 负责人 / 连接阶段"
             value={keyword}
             onChange={(event) => setKeyword(event.target.value)}
           />
         </div>
+
         <DataTable
-          columns={["服务器编号", "公网 IP", "地区", "服务商", "负责人", "状态", "资源概况", "登录邮箱", "操作"]}
+          columns={["服务器编号", "公网 IP", "地区", "服务商", "负责人", "状态", "资源概况", "最近连接问题", "登录邮箱", "操作"]}
           rows={filtered.map((server) => {
             const latest = server.metrics[0];
             return [
@@ -67,20 +72,34 @@ export default function ServersPage() {
               latest
                 ? `CPU ${latest.cpuUsage.toFixed(1)}% / MEM ${latest.memoryUsage.toFixed(1)}% / DISK ${latest.diskUsage.toFixed(1)}%`
                 : "待采集",
+              server.latestConnectivityIssue
+                ? `${connectivityPhaseLabel(server.latestConnectivityIssue.phase)} / ${server.latestConnectivityIssue.reason}`
+                : "-",
               server.loginEmail,
-              <div key={server.id} className="flex gap-2">
-                <Link href={`/servers/${server.id}`} className="rounded bg-cyan-500/10 px-3 py-1 text-cyan-100">
-                  详情
-                </Link>
-                <button
-                  className="rounded bg-indigo-500/10 px-3 py-1 text-indigo-200"
-                  onClick={async () => {
-                    await fetch(`/api/servers/${server.id}/collect`, { method: "POST" });
-                    location.reload();
-                  }}
-                >
-                  采集
-                </button>
+              <div key={server.id} className="space-y-2">
+                <div className="flex flex-wrap gap-2">
+                  <Link href={`/servers/${server.id}`} className="rounded bg-cyan-500/10 px-3 py-1 text-cyan-100">
+                    详情
+                  </Link>
+                  <button
+                    className="rounded bg-indigo-500/10 px-3 py-1 text-indigo-200"
+                    onClick={async () => {
+                      const response = await fetch(`/api/servers/${server.id}/collect`, { method: "POST" });
+                      if (!response.ok) {
+                        const payload = await response.json();
+                        const message = payload.diagnostic
+                          ? `${connectivityPhaseLabel(payload.diagnostic.phase)}: ${payload.diagnostic.reason}`
+                          : payload.message;
+                        alert(message);
+                        return;
+                      }
+                      location.reload();
+                    }}
+                  >
+                    采集
+                  </button>
+                </div>
+                <ServerDiagnoseButton serverId={server.id} compact />
               </div>,
             ];
           })}

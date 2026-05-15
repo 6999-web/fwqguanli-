@@ -14,6 +14,7 @@ async function main() {
 
   await checkPageStatus(admin.cookie, [
     ["/", 200],
+    ["/usage-overview", 200],
     ["/servers", 200],
     ["/servers/import", 307, "/servers"],
     ["/approval-center", 200],
@@ -29,6 +30,7 @@ async function main() {
 
   await checkPageStatus(user.cookie, [
     ["/", 200],
+    ["/usage-overview", 307, "/"],
     ["/servers", 307, "/"],
     ["/ports", 200],
     ["/accounts", 200],
@@ -53,6 +55,7 @@ async function main() {
     "/api/workspaces",
     "/api/audit-logs",
     "/api/accounts",
+    "/api/usage-overview",
   ]);
 
   await checkApis("user", user.cookie, [
@@ -71,12 +74,15 @@ async function main() {
     "/api/handovers",
     "/api/audit-logs",
     "/api/accounts",
+    "/api/usage-overview",
   ]);
 
   const server = await prisma.server.findFirst({ orderBy: { createdAt: "asc" } });
   if (!server) {
     throw new Error("No server records available for smoke test");
   }
+
+  await checkDiagnostic(admin.cookie, server.id);
 
   const workspaceRequest = await createWorkspaceRequest(user.cookie, server.id);
   const workspaceApproval = await findApprovalByRequestId(workspaceRequest.id, "WORKSPACE_ACCESS");
@@ -131,9 +137,9 @@ async function main() {
     JSON.stringify(
       {
         ok: true,
-        checkedPageCases: 23,
+        checkedPageCases: 25,
         checkedApiGroups: 2,
-        checkedForbiddenApis: 5,
+        checkedForbiddenApis: 6,
         workspaceRequestId: workspaceRequest.id,
         portRequestId: portRequest.id,
         opencodeTaskId: opencodePlan.task?.id ?? null,
@@ -260,6 +266,22 @@ async function logoutAndVerify(cookie) {
   const setCookie = logoutResponse.headers.get("set-cookie") ?? "";
   if (!setCookie.includes("opencode_ops_token=") || !setCookie.toLowerCase().includes("max-age=0")) {
     throw new Error("Logout response did not clear the session cookie");
+  }
+}
+
+async function checkDiagnostic(cookie, serverId) {
+  const response = await fetch(`${baseUrl}/api/servers/${serverId}/diagnose`, {
+    method: "POST",
+    headers: {
+      cookie,
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`POST /api/servers/${serverId}/diagnose failed with ${response.status}: ${await response.text()}`);
+  }
+  const payload = await response.json();
+  if (!payload.phase || typeof payload.reason !== "string") {
+    throw new Error("Server diagnostic payload is incomplete");
   }
 }
 

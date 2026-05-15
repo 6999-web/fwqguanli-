@@ -1,0 +1,14 @@
+node_modules
+.next
+npm-debug.log*
+.env*
+.git
+.codex
+.codex-cache
+.codex-logs
+.codex-runtime
+.codex-server.log
+.codex-server.err
+coverage
+README.md
+SYSTEM_AUDIT.md

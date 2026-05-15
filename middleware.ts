@@ -9,6 +9,7 @@ const roleRules: Array<{ prefix: string; roles: string[] }> = [
   { prefix: "/approval-center", roles: ["ADMIN", "OPS"] },
   { prefix: "/handovers", roles: ["ADMIN", "OPS"] },
   { prefix: "/servers", roles: ["ADMIN", "OPS"] },
+  { prefix: "/usage-overview", roles: ["ADMIN"] },
   { prefix: "/ports", roles: ["ADMIN", "OPS", "USER"] },
   { prefix: "/guide", roles: ["USER"] },
   { prefix: "/alerts", roles: ["ADMIN", "OPS"] },

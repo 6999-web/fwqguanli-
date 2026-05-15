@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { RequestStatus, ServerStatus } from "@prisma/client";
+import { RequestStatus } from "@prisma/client";
 import { apiError, getRequestIp } from "@/lib/api";
 import { writeAuditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/rbac";
+import { syncManagedServerStatus } from "@/lib/server-status";
 
 export async function POST(
   request: NextRequest,
@@ -26,7 +27,6 @@ export async function POST(
         await tx.server.update({
           where: { id: handover.serverId },
           data: {
-            status: ServerStatus.IDLE,
             currentOwnerId: null,
             expiresAt: null,
           },
@@ -35,6 +35,7 @@ export async function POST(
 
       return handover;
     });
+    await syncManagedServerStatus(result.serverId);
 
     await writeAuditLog({
       userId: user.id,

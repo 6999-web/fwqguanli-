@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { WorkspaceStatus, type Server, type Workspace } from "@prisma/client";
 import { decryptText, encryptText } from "@/lib/crypto";
 import { prisma } from "@/lib/prisma";
+import { syncManagedServerStatus } from "@/lib/server-status";
 import { connectSSH, runSSHCommand } from "@/lib/ssh/client";
 import { buildWorkspaceFilesystem } from "@/lib/workspace-compose";
 import { ensureWorkspacePorts } from "@/lib/workspace-port-allocation";
@@ -104,7 +105,7 @@ export async function provisionWorkspace(options: {
       workingDirectory,
     });
 
-    return prisma.workspace.update({
+    const workspace = await prisma.workspace.update({
       where: { id: workspaceId },
       data: {
         status: WorkspaceStatus.RUNNING,
@@ -112,6 +113,8 @@ export async function provisionWorkspace(options: {
         lastStartedAt: new Date(),
       },
     });
+    await syncManagedServerStatus(options.server.id);
+    return workspace;
   } catch (error) {
     await prisma.workspace.update({
       where: { id: workspaceId },
@@ -127,7 +130,7 @@ export async function provisionWorkspace(options: {
 export async function stopWorkspace(workspaceId: string) {
   const workspace = await getWorkspaceOrThrow(workspaceId);
   await runComposeCommand(workspace.server, workspace.workingDirectory, `${workspace.composeProjectName} stop`);
-  return prisma.workspace.update({
+  const updated = await prisma.workspace.update({
     where: { id: workspaceId },
     data: {
       status: WorkspaceStatus.STOPPED,
@@ -135,12 +138,14 @@ export async function stopWorkspace(workspaceId: string) {
       statusMessage: "stopped",
     },
   });
+  await syncManagedServerStatus(workspace.serverId);
+  return updated;
 }
 
 export async function startWorkspace(workspaceId: string) {
   const workspace = await getWorkspaceOrThrow(workspaceId);
   await runComposeCommand(workspace.server, workspace.workingDirectory, `${workspace.composeProjectName} up -d`);
-  return prisma.workspace.update({
+  const updated = await prisma.workspace.update({
     where: { id: workspaceId },
     data: {
       status: WorkspaceStatus.RUNNING,
@@ -148,6 +153,8 @@ export async function startWorkspace(workspaceId: string) {
       statusMessage: "running",
     },
   });
+  await syncManagedServerStatus(workspace.serverId);
+  return updated;
 }
 
 export async function deleteWorkspace(workspaceId: string) {
@@ -157,7 +164,7 @@ export async function deleteWorkspace(workspaceId: string) {
     workspace.server,
     `rm -rf ${shellEscape(workspace.workingDirectory)}`,
   );
-  return prisma.workspace.update({
+  const updated = await prisma.workspace.update({
     where: { id: workspaceId },
     data: {
       status: WorkspaceStatus.DELETED,
@@ -165,6 +172,8 @@ export async function deleteWorkspace(workspaceId: string) {
       statusMessage: "deleted",
     },
   });
+  await syncManagedServerStatus(workspace.serverId);
+  return updated;
 }
 
 export async function resetWorkspacePassword(workspaceId: string) {
@@ -204,13 +213,15 @@ export async function collectWorkspaceStatus(workspaceId: string) {
         : remoteStatus === "missing"
           ? WorkspaceStatus.FAILED
           : workspace.status;
-  return prisma.workspace.update({
+  const updated = await prisma.workspace.update({
     where: { id: workspaceId },
     data: {
       status: nextStatus,
       statusMessage: `remote:${remoteStatus || "unknown"}`,
     },
   });
+  await syncManagedServerStatus(workspace.serverId);
+  return updated;
 }
 
 export async function reconcileWorkspaceLifecycle(workspaceId: string) {
@@ -229,13 +240,15 @@ export async function reconcileWorkspaceLifecycle(workspaceId: string) {
     if (workspace.status === WorkspaceStatus.RUNNING || workspace.status === WorkspaceStatus.PROVISIONING) {
       await stopWorkspace(workspace.id);
     }
-    return prisma.workspace.update({
+    const updated = await prisma.workspace.update({
       where: { id: workspace.id },
       data: {
         status: WorkspaceStatus.EXPIRED,
         statusMessage: "expired and waiting for grace cleanup",
       },
     });
+    await syncManagedServerStatus(workspace.serverId);
+    return updated;
   }
 
   return workspace;

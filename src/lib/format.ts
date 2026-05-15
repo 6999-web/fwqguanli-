@@ -61,3 +61,19 @@ export function workspaceRequestTypeLabel(type: string) {
 
   return map[type] ?? type;
 }
+
+export function connectivityPhaseLabel(phase: string | null | undefined) {
+  const map: Record<string, string> = {
+    OK: "连接正常",
+    DNS_UNREACHABLE: "DNS/IP 不可达",
+    TCP_REFUSED: "TCP 拒绝",
+    TCP_TIMEOUT: "TCP 超时",
+    SSH_HANDSHAKE_TIMEOUT: "SSH 握手超时",
+    AUTH_FAILED: "认证失败",
+    COMMAND_FAILED: "远端命令失败",
+    UNKNOWN_ERROR: "未知连接异常",
+  };
+
+  if (!phase) return "-";
+  return map[phase] ?? phase;
+}
