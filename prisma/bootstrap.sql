@@ -61,7 +61,7 @@ CREATE TABLE "Server" (
     "privateIp" TEXT,
     "provider" TEXT,
     "serverUsername" TEXT NOT NULL,
-    "sshPort" INTEGER NOT NULL DEFAULT 1010,
+    "sshPort" INTEGER NOT NULL DEFAULT 22,
     "serverPassword" TEXT NOT NULL,
     "purpose" TEXT,
     "currentOwnerId" TEXT,

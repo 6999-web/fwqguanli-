@@ -38,6 +38,8 @@ export async function POST(request: NextRequest) {
       const serverUsername = String(row["服务器账号"] ?? "ubuntu");
       const serverPassword = encryptText(String(row["服务器密码"] ?? ""));
 
+      const sshPort = Number(row["SSH端口"] ?? row["sshPort"] ?? 22);
+
       const server = await prisma.server.upsert({
         where: { publicIp },
         update: {
@@ -46,7 +48,7 @@ export async function POST(request: NextRequest) {
           loginEmailPassword: encryptText(String(row["密码"] ?? "")),
           region,
           serverUsername,
-          sshPort: 1010,
+          sshPort: Number.isFinite(sshPort) && sshPort > 0 ? sshPort : 22,
           serverPassword,
           provider: "Tencent Cloud",
           currentOwnerId: owner?.id,
@@ -60,7 +62,7 @@ export async function POST(request: NextRequest) {
           publicIp,
           provider: "Tencent Cloud",
           serverUsername,
-          sshPort: 1010,
+          sshPort: Number.isFinite(sshPort) && sshPort > 0 ? sshPort : 22,
           serverPassword,
           purpose: "Excel 导入服务器",
           currentOwnerId: owner?.id,
