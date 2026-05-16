@@ -1,9 +1,9 @@
 import fs from "fs";
 import path from "path";
 import bcrypt from "bcryptjs";
-import * as XLSX from "xlsx";
 import { PrismaClient, RoleCode, ServerStatus } from "@prisma/client";
 import { encryptText } from "../src/lib/crypto";
+import { readExcelRowsFromFile } from "../src/lib/excel";
 import { normalizeSshPort } from "../src/lib/server-connection-config";
 
 const prisma = new PrismaClient();
@@ -74,9 +74,7 @@ async function main() {
     return;
   }
 
-  const workbook = XLSX.readFile(workbookPath);
-  const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json<Record<string, string | undefined>>(firstSheet);
+  const rows = await readExcelRowsFromFile(workbookPath);
   const admin = await prisma.user.findUniqueOrThrow({ where: { email: adminEmail } });
 
   for (const row of rows) {

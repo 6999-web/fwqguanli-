@@ -1,3 +1,4 @@
+import fs from "fs";
 import { NextRequest, NextResponse } from "next/server";
 import { apiError, getRequestIp } from "@/lib/api";
 import { writeAuditLog } from "@/lib/audit";
@@ -98,6 +99,7 @@ export async function POST(request: NextRequest) {
       },
       include: {
         owner: true,
+        server: true,
       },
     });
 
@@ -105,15 +107,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "Workspace not found" }, { status: 404 });
     }
 
+    const jumpPrivateKeyPath = process.env.WORKSPACE_JUMP_PRIVATE_KEY_PATH;
+    const jumpPrivateKey =
+      jumpPrivateKeyPath && fs.existsSync(jumpPrivateKeyPath)
+        ? fs.readFileSync(jumpPrivateKeyPath, "utf8")
+        : undefined;
+    const jumpUsername = jumpPrivateKey
+      ? (process.env.WORKSPACE_JUMP_USERNAME ?? workspace.server.serverUsername)
+      : workspace.server.serverUsername;
+
     const session = createTerminalSession({
       userId: user.id,
       workspaceId: workspace.id,
       serverId: workspace.serverId,
       targetLabel: `工作区 ${workspace.name}`,
-      host: workspace.sshHost,
+      host: "127.0.0.1",
       port: workspace.sshPort,
       username: workspace.sshUsername,
       password: decryptWorkspacePassword(workspace),
+      jumpHost: workspace.server.publicIp,
+      jumpPort: workspace.server.sshPort || 22,
+      jumpUsername,
+      jumpPassword: jumpPrivateKey ? undefined : decryptText(workspace.server.serverPassword),
+      jumpPrivateKey,
       cols: Number(body.cols) || 120,
       rows: Number(body.rows) || 32,
       initialCommand: typeof body.initialCommand === "string" ? body.initialCommand : undefined,

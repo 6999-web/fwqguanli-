@@ -10,7 +10,7 @@ import { ensureWorkspacePorts } from "@/lib/workspace-port-allocation";
 import { generateWorkspacePassword } from "@/lib/workspace-password";
 
 const DEFAULT_BASE_IMAGE =
-  process.env.WORKSPACE_BASE_IMAGE ?? "ghcr.io/opencode-ops/opencode-workspace:latest";
+  process.env.WORKSPACE_BASE_IMAGE ?? "opencode-ops-workspace:24.04";
 const DEFAULT_GRACE_DAYS = Number(process.env.WORKSPACE_DEFAULT_GRACE_DAYS ?? 7);
 
 type WorkspaceSpec = {

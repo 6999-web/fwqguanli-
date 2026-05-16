@@ -1,13 +1,13 @@
 import { RoleCode } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
-import * as XLSX from "xlsx";
 import { apiError, getRequestIp } from "@/lib/api";
 import { writeAuditLog } from "@/lib/audit";
 import { encryptText } from "@/lib/crypto";
+import { readExcelRowsFromBuffer } from "@/lib/excel";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/rbac";
-import { normalizeSshPort } from "@/lib/server-connection-config";
 import { generateServerCode } from "@/lib/server-code";
+import { normalizeSshPort } from "@/lib/server-connection-config";
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,9 +19,7 @@ export async function POST(request: NextRequest) {
     }
 
     const arrayBuffer = await file.arrayBuffer();
-    const workbook = XLSX.read(Buffer.from(arrayBuffer), { type: "buffer" });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json<Record<string, string | undefined>>(sheet);
+    const rows = await readExcelRowsFromBuffer(Buffer.from(arrayBuffer));
 
     const owner = await prisma.user.findFirst({
       where: { role: { code: RoleCode.ADMIN } },
@@ -52,7 +50,7 @@ export async function POST(request: NextRequest) {
 
       if (!hasValidPort) {
         summary.portSkippedCount += 1;
-        summary.warnings.push(`${publicIp}: SSH端口缺失，已跳过端口更新`);
+        summary.warnings.push(`${publicIp}: SSH 端口缺失，已跳过端口更新`);
       }
 
       const server = await prisma.server.upsert({

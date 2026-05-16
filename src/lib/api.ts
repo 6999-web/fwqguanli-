@@ -21,6 +21,12 @@ export function apiError(error: unknown) {
     if (error.message === "FORBIDDEN") {
       return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
+    if (error.message === "Approval not found" || error.message === "Workspace request not found" || error.message === "Port request not found") {
+      return NextResponse.json({ message: error.message }, { status: 404 });
+    }
+    if (error.message === "Approval already processed") {
+      return NextResponse.json({ message: error.message }, { status: 409 });
+    }
     return NextResponse.json({ message: error.message }, { status: 400 });
   }
   return NextResponse.json({ message: "Unknown error" }, { status: 500 });

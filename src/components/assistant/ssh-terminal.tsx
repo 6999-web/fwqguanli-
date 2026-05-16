@@ -8,35 +8,14 @@ import { Bot, PlugZap, RotateCcw, SquareTerminal, Wifi, WifiOff } from "lucide-r
 import { cn } from "@/lib/format";
 
 type SelectedTarget =
-  | {
-      id: string;
-      label: string;
-      host: string;
-      username?: string | null;
-      status: string;
-      mode: "server";
-    }
-  | {
-      id: string;
-      label: string;
-      host: string;
-      username?: string | null;
-      status: string;
-      mode: "workspace";
-      port: number;
-    }
+  | { id: string; label: string; host: string; username?: string | null; status: string; mode: "server" }
+  | { id: string; label: string; host: string; username?: string | null; status: string; mode: "workspace"; port: number }
   | null;
 
 type SessionResponse = {
   sessionId: string;
   mode: "server" | "workspace";
-  target: {
-    id: string;
-    label: string;
-    host: string;
-    username: string;
-    port?: number;
-  };
+  target: { id: string; label: string; host: string; username: string; port?: number };
 };
 
 type TerminalStatus = "idle" | "connecting" | "connected" | "closed" | "error" | "created";
@@ -92,10 +71,7 @@ export function SSHTerminal({ selectedTarget }: { selectedTarget: SelectedTarget
 
     const onDataDispose = terminal.onData((data) => {
       if (!sessionIdRef.current || !socketRef.current) return;
-      socketRef.current.emit("terminal:input", {
-        sessionId: sessionIdRef.current,
-        data,
-      });
+      socketRef.current.emit("terminal:input", { sessionId: sessionIdRef.current, data });
     });
 
     const observer = new ResizeObserver(() => {
@@ -177,9 +153,7 @@ export function SSHTerminal({ selectedTarget }: { selectedTarget: SelectedTarget
 
     try {
       socketRef.current?.emit("terminal:close", { sessionId: currentSessionId });
-      await fetch(`/api/terminal/sessions/${currentSessionId}`, {
-        method: "DELETE",
-      });
+      await fetch(`/api/terminal/sessions/${currentSessionId}`, { method: "DELETE" });
     } catch {}
 
     sessionIdRef.current = null;
@@ -220,9 +194,7 @@ export function SSHTerminal({ selectedTarget }: { selectedTarget: SelectedTarget
       });
 
       const payload = (await response.json()) as SessionResponse & { message?: string };
-      if (!response.ok) {
-        throw new Error(payload.message ?? "Unable to create terminal session");
-      }
+      if (!response.ok) throw new Error(payload.message ?? "Unable to create terminal session");
 
       sessionIdRef.current = payload.sessionId;
       socketRef.current?.emit("terminal:join", {
@@ -232,9 +204,7 @@ export function SSHTerminal({ selectedTarget }: { selectedTarget: SelectedTarget
       });
     } catch (error) {
       setStatus("error");
-      terminalRef.current.writeln(
-        `\r\n\x1b[31m${error instanceof Error ? error.message : "Unable to connect terminal."}\x1b[0m`,
-      );
+      terminalRef.current.writeln(`\r\n\x1b[31m${error instanceof Error ? error.message : "Unable to connect terminal."}\x1b[0m`);
     } finally {
       setBusy(false);
     }
@@ -247,14 +217,10 @@ export function SSHTerminal({ selectedTarget }: { selectedTarget: SelectedTarget
   function relaunchOpenCode() {
     if (!sessionIdRef.current || !socketRef.current || !terminalRef.current) return;
     terminalRef.current.write("\r\n");
-    socketRef.current.emit("terminal:input", {
-      sessionId: sessionIdRef.current,
-      data: "opencode\n",
-    });
+    socketRef.current.emit("terminal:input", { sessionId: sessionIdRef.current, data: "opencode\n" });
   }
 
-  const statusTone =
-    status === "connected" ? "text-emerald-300" : status === "error" ? "text-rose-300" : "text-amber-300";
+  const statusTone = status === "connected" ? "text-emerald-300" : status === "error" ? "text-rose-300" : "text-amber-300";
 
   return (
     <div className="min-w-0 rounded-lg border border-cyan-500/15 bg-[#06182f]/80 p-4">
@@ -277,38 +243,19 @@ export function SSHTerminal({ selectedTarget }: { selectedTarget: SelectedTarget
 
       <div className="mt-4 rounded-lg border border-cyan-500/10 bg-[#020b16] p-4">
         <div className="flex flex-wrap items-center gap-3 border-b border-slate-800 pb-3">
-          <button
-            type="button"
-            onClick={() => startSession()}
-            disabled={!selectedTarget || busy}
-            className="inline-flex items-center gap-2 rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
-          >
+          <button type="button" onClick={() => startSession()} disabled={!selectedTarget || busy} className="inline-flex items-center gap-2 rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60">
             <PlugZap size={16} />
             连接 Shell
           </button>
-          <button
-            type="button"
-            onClick={() => startSession("opencode\n")}
-            disabled={!selectedTarget || busy}
-            className="inline-flex items-center gap-2 rounded-lg border border-cyan-500/20 px-4 py-2 text-sm text-cyan-100 transition hover:bg-cyan-500/10 disabled:cursor-not-allowed disabled:opacity-60"
-          >
+          <button type="button" onClick={() => startSession("opencode\n")} disabled={!selectedTarget || busy} className="inline-flex items-center gap-2 rounded-lg border border-cyan-500/20 px-4 py-2 text-sm text-cyan-100 transition hover:bg-cyan-500/10 disabled:cursor-not-allowed disabled:opacity-60">
             <Bot size={16} />
             启动 OpenCode
           </button>
-          <button
-            type="button"
-            onClick={relaunchOpenCode}
-            disabled={status !== "connected"}
-            className="inline-flex items-center gap-2 rounded-lg border border-cyan-500/20 px-4 py-2 text-sm text-slate-200 transition hover:bg-cyan-500/10 disabled:cursor-not-allowed disabled:opacity-50"
-          >
+          <button type="button" onClick={relaunchOpenCode} disabled={status !== "connected"} className="inline-flex items-center gap-2 rounded-lg border border-cyan-500/20 px-4 py-2 text-sm text-slate-200 transition hover:bg-cyan-500/10 disabled:cursor-not-allowed disabled:opacity-50">
             <Bot size={16} />
             在当前终端运行 opencode
           </button>
-          <button
-            type="button"
-            onClick={clearTerminal}
-            className="inline-flex items-center gap-2 rounded-lg border border-cyan-500/20 px-4 py-2 text-sm text-slate-300 transition hover:bg-cyan-500/10"
-          >
+          <button type="button" onClick={clearTerminal} className="inline-flex items-center gap-2 rounded-lg border border-cyan-500/20 px-4 py-2 text-sm text-slate-300 transition hover:bg-cyan-500/10">
             <RotateCcw size={16} />
             清屏
           </button>

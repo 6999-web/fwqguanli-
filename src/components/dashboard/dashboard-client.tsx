@@ -309,7 +309,7 @@ function ChartPanel({ title, children }: { title: string; children: React.ReactN
   return (
     <div>
       <div className="mb-2 text-sm text-cyan-200">{title}</div>
-      <div className="h-64 min-h-64 min-w-0">
+      <div className="min-w-0" style={{ width: "100%", height: 256, minWidth: 0, minHeight: 256 }}>
         {mounted ? (
           <ResponsiveContainer width="100%" height="100%" minWidth={0}>
             {children as React.ReactElement}
@@ -328,7 +328,7 @@ function ChartCard({ title, children }: { title: string; children: React.ReactNo
   return (
     <div className="rounded-lg border border-cyan-500/15 bg-[#06182f]/80 p-4">
       <div className="mb-2 text-sm text-cyan-200">{title}</div>
-      <div className="h-64 min-h-64 min-w-0">
+      <div className="min-w-0" style={{ width: "100%", height: 256, minWidth: 0, minHeight: 256 }}>
         {mounted ? (
           <ResponsiveContainer width="100%" height="100%" minWidth={0}>
             {children as React.ReactElement}

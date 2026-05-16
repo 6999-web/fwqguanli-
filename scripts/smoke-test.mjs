@@ -25,21 +25,21 @@ async function main() {
     ["/assistant", 200],
     ["/audit-logs", 200],
     ["/accounts", 200],
-    ["/approvals", 307, "/"],
+    ["/approvals", 200],
   ]);
 
   await checkPageStatus(user.cookie, [
     ["/", 200],
     ["/usage-overview", 307, "/"],
-    ["/servers", 307, "/"],
+    ["/servers", 200],
     ["/ports", 200],
     ["/accounts", 200],
     ["/approvals", 200],
     ["/guide", 200],
-    ["/approval-center", 307, "/"],
-    ["/alerts", 307, "/"],
-    ["/assistant", 307, "/"],
-    ["/audit-logs", 307, "/"],
+    ["/approval-center", 200],
+    ["/alerts", 200],
+    ["/assistant", 200],
+    ["/audit-logs", 200],
   ]);
 
   await checkApis("admin", admin.cookie, [

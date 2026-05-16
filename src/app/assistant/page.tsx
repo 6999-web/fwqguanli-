@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Bot, ChevronRight, Box, Server } from "lucide-react";
+import { Bot, Box, ChevronRight, Server } from "lucide-react";
 import { SSHTerminal } from "@/components/assistant/ssh-terminal";
 import { AppShell } from "@/components/layout/app-shell";
 import { cn, statusLabel } from "@/lib/format";
@@ -10,7 +10,6 @@ type ServerRecord = {
   id: string;
   serverCode: string;
   publicIp: string;
-  region?: string | null;
   status: string;
   serverUsername?: string | null;
 };
@@ -22,9 +21,6 @@ type WorkspaceRecord = {
   sshPort: number;
   sshUsername: string;
   status: string;
-  server?: {
-    serverCode?: string | null;
-  } | null;
 };
 
 type Target =
@@ -86,7 +82,7 @@ export default function AssistantPage() {
           </div>
           <h1 className="text-3xl font-semibold">工作区 SSH 终端</h1>
           <p className="max-w-4xl text-sm text-slate-400">
-            普通用户只能连接自己的容器工作区；管理员除了工作区之外，还保留宿主机 SSH 入口。
+            普通用户只能连接自己的容器工作区；管理员除工作区之外，还保留宿主机 SSH 入口。
           </p>
         </div>
 
@@ -106,9 +102,7 @@ export default function AssistantPage() {
                     onClick={() => setTargetId(target.id)}
                     className={cn(
                       "w-full rounded-lg border p-4 text-left transition",
-                      active
-                        ? "border-cyan-400/50 bg-cyan-500/10"
-                        : "border-cyan-500/10 bg-[#031224] hover:border-cyan-500/30",
+                      active ? "border-cyan-400/50 bg-cyan-500/10" : "border-cyan-500/10 bg-[#031224] hover:border-cyan-500/30",
                     )}
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -122,9 +116,7 @@ export default function AssistantPage() {
                     </div>
                     <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
                       <ChevronRight size={14} />
-                      <span>
-                        {target.mode === "workspace" ? "容器工作区" : "宿主机"} / {target.username || "root"}
-                      </span>
+                      <span>{target.mode === "workspace" ? "容器工作区" : "宿主机"} / {target.username || "root"}</span>
                     </div>
                   </button>
                 );

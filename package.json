@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "node server.js",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "node server.js",
     "lint": "eslint",
     "db:generate": "prisma generate",
@@ -21,6 +21,7 @@
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "exceljs": "^4.4.0",
     "jose": "^6.2.3",
     "lucide-react": "^1.14.0",
     "next": "16.2.6",
@@ -32,7 +33,6 @@
     "socket.io-client": "^4.8.3",
     "ssh2": "^1.17.0",
     "tailwind-merge": "^3.6.0",
-    "xlsx": "^0.18.5",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -49,5 +49,8 @@
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
+  },
+  "overrides": {
+    "postcss": "^8.5.10"
   }
 }

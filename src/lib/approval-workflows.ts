@@ -1,5 +1,6 @@
 import { Prisma, RequestStatus, RiskLevel, type OperationApproval, type User } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { canAttemptServerConnection } from "@/lib/server-connection-config";
 import { syncManagedServerStatus } from "@/lib/server-status";
 import { executeOpenCodeTask } from "@/lib/opencode-execution";
 import { decryptWorkspacePassword, provisionWorkspace } from "@/lib/workspace-orchestrator";
@@ -35,7 +36,11 @@ export async function decideApproval(options: {
   }
 
   if (approval.status !== RequestStatus.PENDING) {
-    throw new Error("Approval already processed");
+    return {
+      type: approval.type,
+      approval,
+      alreadyProcessed: true,
+    };
   }
 
   const payload = normalizePayload(approval.payload);
@@ -85,7 +90,12 @@ async function decideWorkspaceApproval(
     throw new Error("Workspace request not found");
   }
 
-  const targetServerId = asString(body.targetServerId) ?? asString(payload.serverId) ?? permissionRequest.serverId;
+  const targetServerId =
+    asString(body.targetServerId) ??
+    asString(payload.targetServerId) ??
+    asString(payload.serverId) ??
+    permissionRequest.serverId ??
+    (status === RequestStatus.APPROVED ? await pickDefaultTargetServerId() : null);
   if (status === RequestStatus.APPROVED && !targetServerId) {
     throw new Error("Target server is required");
   }
@@ -405,6 +415,30 @@ function buildWorkspaceUsername(name: string, requestId: string) {
     .replace(/[^a-z0-9]+/g, "")
     .slice(0, 8) || "user";
   return `${base}${requestId.slice(-4)}`;
+}
+
+async function pickDefaultTargetServerId() {
+  const servers = await prisma.server.findMany({
+    where: {
+      status: {
+        in: ["IDLE", "IN_USE"],
+      },
+    },
+    orderBy: {
+      createdAt: "asc",
+    },
+  });
+
+  const candidates = servers
+    .filter((server) => canAttemptServerConnection(server))
+    .sort((left, right) => {
+      if (left.status === right.status) return 0;
+      if (left.status === "IDLE") return -1;
+      if (right.status === "IDLE") return 1;
+      return 0;
+    });
+
+  return candidates[0]?.id ?? null;
 }
 
 async function createWorkspaceHandover(options: {

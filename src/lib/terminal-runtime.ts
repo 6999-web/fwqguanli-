@@ -8,6 +8,11 @@ type TerminalSessionRecord = {
   port: number;
   username: string;
   password?: string;
+  jumpHost?: string;
+  jumpPort?: number;
+  jumpUsername?: string;
+  jumpPassword?: string;
+  jumpPrivateKey?: string;
   initialCommand?: string;
   status: "created" | "connecting" | "connected" | "closed" | "error";
   createdAt: number;
@@ -45,6 +50,11 @@ export function createTerminalSession(input: {
   port?: number;
   username: string;
   password?: string;
+  jumpHost?: string;
+  jumpPort?: number;
+  jumpUsername?: string;
+  jumpPassword?: string;
+  jumpPrivateKey?: string;
   cols?: number;
   rows?: number;
   initialCommand?: string;
@@ -59,6 +69,11 @@ export function createTerminalSession(input: {
     port: input.port ?? 22,
     username: input.username,
     password: input.password,
+    jumpHost: input.jumpHost,
+    jumpPort: input.jumpPort,
+    jumpUsername: input.jumpUsername,
+    jumpPassword: input.jumpPassword,
+    jumpPrivateKey: input.jumpPrivateKey,
     initialCommand: input.initialCommand,
     status: "created",
     createdAt: Date.now(),

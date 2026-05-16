@@ -72,6 +72,11 @@ function closeTerminalSession(io, sessionId, reason = "closed") {
       session.conn.end();
     } catch {}
   }
+  if (session.jumpConn) {
+    try {
+      session.jumpConn.end();
+    } catch {}
+  }
 
   io.to(roomName(sessionId)).emit("terminal:exit", {
     sessionId,
@@ -95,6 +100,19 @@ function attachTerminalSession(io, session, cols, rows) {
     session,
     systemLine(`Connecting to ${session.username}@${session.host}:${session.port} ...`, 36),
   );
+
+  const connectTarget = (sock) => {
+    conn.connect({
+      host: session.host,
+      port: session.port || 22,
+      username: session.username,
+      password: session.password,
+      sock,
+      readyTimeout: Number(process.env.SSH_CONNECT_TIMEOUT_MS || 10000),
+      keepaliveInterval: 10000,
+      keepaliveCountMax: 3,
+    });
+  };
 
   conn
     .on("ready", () => {
@@ -151,16 +169,48 @@ function attachTerminalSession(io, session, cols, rows) {
       if (getTerminalRuntime().sessions.has(session.id)) {
         closeTerminalSession(io, session.id, "connection-closed");
       }
-    })
-    .connect({
-      host: session.host,
-      port: session.port || 22,
-      username: session.username,
-      password: session.password,
-      readyTimeout: Number(process.env.SSH_CONNECT_TIMEOUT_MS || 10000),
-      keepaliveInterval: 10000,
-      keepaliveCountMax: 3,
     });
+
+  if (session.jumpHost && session.jumpUsername) {
+    const jumpConn = new Client();
+    session.jumpConn = jumpConn;
+    emitTerminalData(
+      io,
+      session,
+      systemLine(`Opening jump tunnel via ${session.jumpUsername}@${session.jumpHost}:${session.jumpPort || 22} ...`, 36),
+    );
+
+    jumpConn
+      .on("ready", () => {
+        jumpConn.forwardOut("127.0.0.1", 0, session.host, session.port || 22, (error, stream) => {
+          if (error) {
+            emitTerminalStatus(io, session, "error");
+            emitTerminalData(io, session, systemLine(`Jump tunnel failed: ${error.message}`, 31));
+            closeTerminalSession(io, session.id, "jump-error");
+            return;
+          }
+          connectTarget(stream);
+        });
+      })
+      .on("error", (error) => {
+        emitTerminalStatus(io, session, "error");
+        emitTerminalData(io, session, systemLine(`Jump SSH failed: ${error.message}`, 31));
+        closeTerminalSession(io, session.id, "jump-connect-error");
+      })
+      .connect({
+        host: session.jumpHost,
+        port: session.jumpPort || 22,
+        username: session.jumpUsername,
+        password: session.jumpPrivateKey ? undefined : session.jumpPassword,
+        privateKey: session.jumpPrivateKey,
+        readyTimeout: Number(process.env.SSH_CONNECT_TIMEOUT_MS || 10000),
+        keepaliveInterval: 10000,
+        keepaliveCountMax: 3,
+      });
+    return;
+  }
+
+  connectTarget();
 }
 
 app.prepare().then(() => {
